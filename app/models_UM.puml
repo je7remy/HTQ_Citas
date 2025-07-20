@@ -1,0 +1,72 @@
+@startuml
+skinparam classAttributeIconSize 0
+
+class Usuario {
+    +id_usuario: Integer
+    +nombre_completo: String
+    +usuario: String
+    +contrasena_hash: String
+    +rol: String
+    +activo: Boolean
+}
+
+class Medico {
+    +id_medico: Integer
+    +id_usuario: Integer
+    +especialidad: String
+}
+
+class Paciente {
+    +id_paciente: Integer
+    +nombre_completo: String
+    +cedula: String
+    +telefono: String
+    +fecha_nacimiento: Date
+    +sexo: String
+    +direccion: Text
+}
+
+class Cita {
+    +id_cita: Integer
+    +id_paciente: Integer
+    +id_medico: Integer
+    +fecha: Date
+    +hora: Time
+    +estado: String
+    +notas_secretaria: Text
+}
+
+class NotaMedica {
+    +id_nota: Integer
+    +id_cita: Integer
+    +descripcion: Text
+    +fecha_registro: DateTime
+}
+
+class DisponibilidadMedica {
+    +id_disponibilidad: Integer
+    +id_medico: Integer
+    +dia_semana: String
+    +hora_inicio: Time
+    +hora_fin: Time
+}
+
+class LogReporte {
+    +id_reporte: Integer
+    +tipo_reporte: String
+    +fecha_generacion: DateTime
+    +usuario_generador: Integer
+}
+
+' Relaciones
+Usuario "1" -- "1" Medico : crea >
+Usuario "1" -- "*" LogReporte : genera >
+
+Medico "1" -- "*" DisponibilidadMedica
+Medico "1" -- "*" Cita
+
+Paciente "1" -- "*" Cita
+
+Cita "1" -- "0..1" NotaMedica
+
+@enduml

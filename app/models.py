@@ -10,7 +10,11 @@ class Usuario(UserMixin, db.Model):
     nombre_completo = db.Column(db.String(100), nullable=False)
     usuario = db.Column(db.String(50), unique=True, nullable=False)
     contrasena_hash = db.Column(db.String(100), nullable=False)
-    rol = db.Column(db.String(20), nullable=False)  # 'medico' o 'secretaria'
+    rol = db.Column(db.String(20), nullable=False)  # 'medico' o 'secretaria' administrador?
+
+
+
+    
     activo = db.Column(db.Boolean, default=True)
 
     # Relaciones
