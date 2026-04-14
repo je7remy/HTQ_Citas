@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SGCM — Iniciar sesión</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-100 min-h-screen flex items-center justify-center">
+  <div class="bg-white shadow-xl rounded-2xl w-full max-w-md p-8">
+    <div class="text-center mb-6">
+      <h1 class="text-2xl font-bold text-blue-800">SGCM</h1>
+      <p class="text-sm text-slate-500">Hospital Regional Traumatológico y Quirúrgico Prof. Juan Bosch</p>
+    </div>
+
+    <form id="login-form" class="space-y-4">
+      <div>
+        <label class="block text-sm font-medium text-slate-700">Email</label>
+        <input id="email" type="email" required
+               class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-slate-700">Contraseña</label>
+        <input id="password" type="password" required
+               class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+      </div>
+
+      <div id="error" class="hidden text-sm text-red-600 bg-red-50 border border-red-200 rounded p-2"></div>
+
+      <button type="submit"
+              class="w-full bg-blue-700 hover:bg-blue-800 text-white font-semibold py-2 rounded-lg transition">
+        Iniciar sesión
+      </button>
+    </form>
+
+    <p class="mt-6 text-xs text-center text-slate-400">© 2026 SGCM · La Vega, R.D.</p>
+  </div>
+
+  <script src="/static/js/app.js"></script>
+  <script>
+    document.getElementById("login-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const errBox = document.getElementById("error");
+      errBox.classList.add("hidden");
+      try {
+        await SGCM.login(
+          document.getElementById("email").value,
+          document.getElementById("password").value
+        );
+        window.location.href = "/calendar.html";
+      } catch (err) {
+        errBox.textContent = err.message;
+        errBox.classList.remove("hidden");
+      }
+    });
+  </script>
+</body>
+</html>

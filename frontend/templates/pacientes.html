@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SGCM — Pacientes</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-100 min-h-screen">
+  <header class="bg-blue-800 text-white shadow">
+    <div class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+      <div>
+        <h1 class="text-xl font-bold">SGCM — Pacientes</h1>
+        <p class="text-xs text-blue-200">HTQPJB · La Vega</p>
+      </div>
+      <nav class="flex items-center gap-3 text-sm">
+        <a href="/calendar.html" class="hover:underline">Calendario</a>
+        <a href="/pacientes.html" class="font-semibold underline">Pacientes</a>
+        <a href="/medicos.html" class="hover:underline">Médicos</a>
+        <a href="/auditoria.html" class="hover:underline">Auditoría</a>
+        <span id="user-info" class="ml-3 text-blue-200"></span>
+        <button id="logout" class="bg-blue-900 hover:bg-blue-950 px-3 py-1 rounded">Salir</button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto p-6 space-y-6">
+    <!-- Formulario de alta / edición -->
+    <section class="bg-white rounded-2xl shadow p-5">
+      <h2 id="form-title" class="text-lg font-semibold text-slate-800 mb-4">Nuevo paciente</h2>
+      <form id="paciente-form" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <input type="hidden" id="paciente-id" />
+        <div>
+          <label class="block text-sm text-slate-600">Cédula *</label>
+          <input id="cedula" required maxlength="13"
+            class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" />
+        </div>
+        <div>
+          <label class="block text-sm text-slate-600">Nombre *</label>
+          <input id="nombre" required
+            class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" />
+        </div>
+        <div>
+          <label class="block text-sm text-slate-600">Apellidos *</label>
+          <input id="apellidos" required
+            class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" />
+        </div>
+        <div>
+          <label class="block text-sm text-slate-600">Teléfono *</label>
+          <input id="telefono" required
+            class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" />
+        </div>
+        <div>
+          <label class="block text-sm text-slate-600">Fecha de nacimiento</label>
+          <input id="fecha_nacimiento" type="date"
+            class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" />
+        </div>
+        <div>
+          <label class="block text-sm text-slate-600">Dirección</label>
+          <input id="direccion"
+            class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" />
+        </div>
+
+        <div id="form-error" class="hidden md:col-span-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded p-2"></div>
+
+        <div class="md:col-span-3 flex gap-2">
+          <button type="submit"
+            class="bg-blue-700 hover:bg-blue-800 text-white font-semibold px-4 py-2 rounded-lg">
+            Guardar
+          </button>
+          <button type="button" id="cancel-btn"
+            class="hidden bg-slate-200 hover:bg-slate-300 text-slate-800 px-4 py-2 rounded-lg">
+            Cancelar
+          </button>
+        </div>
+      </form>
+    </section>
+
+    <!-- Listado -->
+    <section class="bg-white rounded-2xl shadow p-5">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-lg font-semibold text-slate-800">Pacientes registrados</h2>
+        <input id="search" placeholder="Buscar por cédula, nombre…"
+          class="w-72 rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+      </div>
+
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead class="bg-slate-100 text-slate-600 text-left">
+            <tr>
+              <th class="px-3 py-2">Cédula</th>
+              <th class="px-3 py-2">Nombre</th>
+              <th class="px-3 py-2">Apellidos</th>
+              <th class="px-3 py-2">Teléfono</th>
+              <th class="px-3 py-2 text-right">Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="tbody" class="divide-y divide-slate-100"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script src="/static/js/app.js"></script>
+  <script>
+    SGCM.requireAuth();
+
+    (async () => {
+      const me = await SGCM.me();
+      document.getElementById("user-info").textContent = `${me.nombre} (${me.rol})`;
+    })();
+
+    document.getElementById("logout").addEventListener("click", () => {
+      SGCM.logout();
+      window.location.href = "/login.html";
+    });
+
+    const form = document.getElementById("paciente-form");
+    const formTitle = document.getElementById("form-title");
+    const cancelBtn = document.getElementById("cancel-btn");
+    const errBox = document.getElementById("form-error");
+
+    function resetForm() {
+      form.reset();
+      document.getElementById("paciente-id").value = "";
+      formTitle.textContent = "Nuevo paciente";
+      cancelBtn.classList.add("hidden");
+      errBox.classList.add("hidden");
+    }
+
+    cancelBtn.addEventListener("click", resetForm);
+
+    async function cargar(q = "") {
+      const path = q ? `/pacientes?q=${encodeURIComponent(q)}` : "/pacientes";
+      const data = await SGCM.api(path);
+      const tbody = document.getElementById("tbody");
+      tbody.innerHTML = "";
+      if (data.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" class="text-center text-slate-400 py-6">Sin resultados</td></tr>`;
+        return;
+      }
+      for (const p of data) {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td class="px-3 py-2 font-mono">${p.cedula}</td>
+          <td class="px-3 py-2">${p.nombre}</td>
+          <td class="px-3 py-2">${p.apellidos}</td>
+          <td class="px-3 py-2">${p.telefono}</td>
+          <td class="px-3 py-2 text-right">
+            <button data-id="${p.id}" class="edit-btn text-blue-700 hover:underline mr-3">Editar</button>
+            <button data-id="${p.id}" class="del-btn text-red-600 hover:underline">Eliminar</button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      }
+      tbody.querySelectorAll(".edit-btn").forEach((b) =>
+        b.addEventListener("click", () => editar(b.dataset.id))
+      );
+      tbody.querySelectorAll(".del-btn").forEach((b) =>
+        b.addEventListener("click", () => eliminar(b.dataset.id))
+      );
+    }
+
+    async function editar(id) {
+      const p = await SGCM.api(`/pacientes/${id}`);
+      document.getElementById("paciente-id").value = p.id;
+      document.getElementById("cedula").value = p.cedula;
+      document.getElementById("cedula").disabled = true;
+      document.getElementById("nombre").value = p.nombre;
+      document.getElementById("apellidos").value = p.apellidos;
+      document.getElementById("telefono").value = p.telefono;
+      document.getElementById("fecha_nacimiento").value = p.fecha_nacimiento || "";
+      document.getElementById("direccion").value = p.direccion || "";
+      formTitle.textContent = `Editar paciente #${p.id}`;
+      cancelBtn.classList.remove("hidden");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    async function eliminar(id) {
+      if (!confirm("¿Eliminar este paciente?")) return;
+      try {
+        await SGCM.api(`/pacientes/${id}`, { method: "DELETE" });
+        await cargar(document.getElementById("search").value);
+      } catch (e) {
+        alert(e.message);
+      }
+    }
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      errBox.classList.add("hidden");
+      const id = document.getElementById("paciente-id").value;
+      const payload = {
+        cedula: document.getElementById("cedula").value,
+        nombre: document.getElementById("nombre").value,
+        apellidos: document.getElementById("apellidos").value,
+        telefono: document.getElementById("telefono").value,
+        fecha_nacimiento: document.getElementById("fecha_nacimiento").value || null,
+        direccion: document.getElementById("direccion").value || null,
+      };
+      try {
+        if (id) {
+          // PATCH no acepta cedula
+          const { cedula, ...rest } = payload;
+          await SGCM.api(`/pacientes/${id}`, { method: "PATCH", body: JSON.stringify(rest) });
+        } else {
+          await SGCM.api("/pacientes", { method: "POST", body: JSON.stringify(payload) });
+        }
+        document.getElementById("cedula").disabled = false;
+        resetForm();
+        await cargar();
+      } catch (e) {
+        errBox.textContent = e.message;
+        errBox.classList.remove("hidden");
+      }
+    });
+
+    let searchTimer;
+    document.getElementById("search").addEventListener("input", (e) => {
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(() => cargar(e.target.value), 250);
+    });
+
+    cargar();
+  </script>
+</body>
+</html>

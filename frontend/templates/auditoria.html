@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SGCM — Auditoría</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-100 min-h-screen">
+  <header class="bg-blue-800 text-white shadow">
+    <div class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+      <div>
+        <h1 class="text-xl font-bold">SGCM — Auditoría</h1>
+        <p class="text-xs text-blue-200">CU-15 · Solo administradores</p>
+      </div>
+      <nav class="flex items-center gap-3 text-sm">
+        <a href="/calendar.html" class="hover:underline">Calendario</a>
+        <a href="/pacientes.html" class="hover:underline">Pacientes</a>
+        <a href="/medicos.html" class="hover:underline">Médicos</a>
+        <a href="/auditoria.html" class="font-semibold underline">Auditoría</a>
+        <span id="user-info" class="ml-3 text-blue-200"></span>
+        <button id="logout" class="bg-blue-900 hover:bg-blue-950 px-3 py-1 rounded">Salir</button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto p-6 space-y-6">
+    <section class="bg-white rounded-2xl shadow p-5">
+      <h2 class="text-lg font-semibold text-slate-800 mb-4">Filtros</h2>
+      <form id="filter-form" class="grid grid-cols-1 md:grid-cols-5 gap-3">
+        <div>
+          <label class="block text-xs text-slate-600">Acción</label>
+          <select id="accion" class="mt-1 w-full rounded-lg border border-slate-300 px-2 py-2 text-sm">
+            <option value="">Todas</option>
+            <option>CREATE</option>
+            <option>UPDATE</option>
+            <option>DELETE</option>
+            <option>LOGIN</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs text-slate-600">Tabla</label>
+          <select id="tabla" class="mt-1 w-full rounded-lg border border-slate-300 px-2 py-2 text-sm">
+            <option value="">Todas</option>
+            <option>usuarios</option>
+            <option>pacientes</option>
+            <option>medicos</option>
+            <option>horarios</option>
+            <option>citas</option>
+            <option>consultas</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs text-slate-600">Desde</label>
+          <input type="date" id="desde" class="mt-1 w-full rounded-lg border border-slate-300 px-2 py-2 text-sm" />
+        </div>
+        <div>
+          <label class="block text-xs text-slate-600">Hasta</label>
+          <input type="date" id="hasta" class="mt-1 w-full rounded-lg border border-slate-300 px-2 py-2 text-sm" />
+        </div>
+        <div class="flex items-end gap-2">
+          <button class="flex-1 bg-blue-700 hover:bg-blue-800 text-white text-sm font-semibold py-2 rounded-lg">
+            Filtrar
+          </button>
+          <button type="button" id="clear-btn"
+            class="bg-slate-200 hover:bg-slate-300 text-slate-800 text-sm py-2 px-3 rounded-lg">
+            Limpiar
+          </button>
+        </div>
+      </form>
+    </section>
+
+    <section class="bg-white rounded-2xl shadow p-5">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="text-lg font-semibold text-slate-800">Registros</h2>
+        <span id="total" class="text-sm text-slate-500"></span>
+      </div>
+
+      <div id="error-box" class="hidden mb-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded p-2"></div>
+
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead class="bg-slate-100 text-slate-600 text-left">
+            <tr>
+              <th class="px-3 py-2">Fecha/Hora</th>
+              <th class="px-3 py-2">Usuario</th>
+              <th class="px-3 py-2">Acción</th>
+              <th class="px-3 py-2">Tabla</th>
+              <th class="px-3 py-2">Registro</th>
+              <th class="px-3 py-2">Detalle</th>
+              <th class="px-3 py-2">IP</th>
+            </tr>
+          </thead>
+          <tbody id="tbody" class="divide-y divide-slate-100"></tbody>
+        </table>
+      </div>
+
+      <div class="mt-4 flex items-center justify-between text-sm">
+        <button id="prev-btn" class="bg-slate-200 hover:bg-slate-300 px-3 py-1 rounded disabled:opacity-50">
+          ← Anterior
+        </button>
+        <span id="page-info" class="text-slate-500"></span>
+        <button id="next-btn" class="bg-slate-200 hover:bg-slate-300 px-3 py-1 rounded disabled:opacity-50">
+          Siguiente →
+        </button>
+      </div>
+    </section>
+  </main>
+
+  <script src="/static/js/app.js"></script>
+  <script>
+    SGCM.requireAuth();
+
+    const LIMIT = 25;
+    let offset = 0;
+    let total = 0;
+
+    const COLOR_ACCION = {
+      CREATE: "bg-green-100 text-green-800",
+      UPDATE: "bg-blue-100 text-blue-800",
+      DELETE: "bg-red-100 text-red-800",
+      LOGIN:  "bg-purple-100 text-purple-800",
+    };
+
+    (async () => {
+      try {
+        const me = await SGCM.me();
+        document.getElementById("user-info").textContent = `${me.nombre} (${me.rol})`;
+        if (me.rol !== "admin") {
+          showError("Esta pantalla es solo para administradores.");
+        }
+      } catch (e) { /* requireAuth ya redirige */ }
+    })();
+
+    document.getElementById("logout").addEventListener("click", () => {
+      SGCM.logout();
+      window.location.href = "/login.html";
+    });
+
+    function showError(msg) {
+      const box = document.getElementById("error-box");
+      box.textContent = msg;
+      box.classList.remove("hidden");
+    }
+
+    function buildQuery() {
+      const params = new URLSearchParams();
+      const accion = document.getElementById("accion").value;
+      const tabla = document.getElementById("tabla").value;
+      const desde = document.getElementById("desde").value;
+      const hasta = document.getElementById("hasta").value;
+      if (accion) params.set("accion", accion);
+      if (tabla) params.set("tabla", tabla);
+      if (desde) params.set("desde", desde);
+      if (hasta) params.set("hasta", hasta);
+      params.set("limit", LIMIT);
+      params.set("offset", offset);
+      return params.toString();
+    }
+
+    async function cargar() {
+      document.getElementById("error-box").classList.add("hidden");
+      try {
+        const data = await SGCM.api(`/auditoria?${buildQuery()}`);
+        total = data.total;
+        document.getElementById("total").textContent = `${total} registro(s)`;
+
+        const tbody = document.getElementById("tbody");
+        tbody.innerHTML = "";
+        if (data.items.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="7" class="text-center text-slate-400 py-6">Sin registros</td></tr>`;
+        } else {
+          for (const r of data.items) {
+            const tr = document.createElement("tr");
+            const fecha = new Date(r.fecha_hora).toLocaleString("es-DO");
+            const colorClass = COLOR_ACCION[r.accion] || "bg-slate-100 text-slate-800";
+            tr.innerHTML = `
+              <td class="px-3 py-2 whitespace-nowrap">${fecha}</td>
+              <td class="px-3 py-2">${r.id_usuario ?? "—"}</td>
+              <td class="px-3 py-2">
+                <span class="px-2 py-0.5 rounded text-xs font-semibold ${colorClass}">${r.accion}</span>
+              </td>
+              <td class="px-3 py-2 font-mono text-xs">${r.tabla_afectada}</td>
+              <td class="px-3 py-2">${r.id_registro ?? "—"}</td>
+              <td class="px-3 py-2 text-slate-600 max-w-md truncate" title="${r.detalle ?? ""}">${r.detalle ?? "—"}</td>
+              <td class="px-3 py-2 font-mono text-xs">${r.ip_origen ?? "—"}</td>
+            `;
+            tbody.appendChild(tr);
+          }
+        }
+
+        const pagina = Math.floor(offset / LIMIT) + 1;
+        const totalPaginas = Math.max(1, Math.ceil(total / LIMIT));
+        document.getElementById("page-info").textContent = `Página ${pagina} de ${totalPaginas}`;
+        document.getElementById("prev-btn").disabled = offset === 0;
+        document.getElementById("next-btn").disabled = offset + LIMIT >= total;
+      } catch (e) {
+        showError(e.message);
+      }
+    }
+
+    document.getElementById("filter-form").addEventListener("submit", (e) => {
+      e.preventDefault();
+      offset = 0;
+      cargar();
+    });
+
+    document.getElementById("clear-btn").addEventListener("click", () => {
+      document.getElementById("filter-form").reset();
+      offset = 0;
+      cargar();
+    });
+
+    document.getElementById("prev-btn").addEventListener("click", () => {
+      if (offset >= LIMIT) { offset -= LIMIT; cargar(); }
+    });
+
+    document.getElementById("next-btn").addEventListener("click", () => {
+      if (offset + LIMIT < total) { offset += LIMIT; cargar(); }
+    });
+
+    cargar();
+  </script>
+</body>
+</html>

@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SGCM — Médicos</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-100 min-h-screen">
+  <header class="bg-blue-800 text-white shadow">
+    <div class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+      <div>
+        <h1 class="text-xl font-bold">SGCM — Médicos</h1>
+        <p class="text-xs text-blue-200">HTQPJB · La Vega</p>
+      </div>
+      <nav class="flex items-center gap-3 text-sm">
+        <a href="/calendar.html" class="hover:underline">Calendario</a>
+        <a href="/pacientes.html" class="hover:underline">Pacientes</a>
+        <a href="/medicos.html" class="font-semibold underline">Médicos</a>
+        <a href="/auditoria.html" class="hover:underline">Auditoría</a>
+        <span id="user-info" class="ml-3 text-blue-200"></span>
+        <button id="logout" class="bg-blue-900 hover:bg-blue-950 px-3 py-1 rounded">Salir</button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- Columna izquierda: alta de médico -->
+    <section class="bg-white rounded-2xl shadow p-5 lg:col-span-1">
+      <h2 class="text-lg font-semibold text-slate-800 mb-4">Nuevo médico</h2>
+      <form id="medico-form" class="space-y-3">
+        <div>
+          <label class="block text-sm text-slate-600">Nombre *</label>
+          <input id="nombre" required
+            class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" />
+        </div>
+        <div>
+          <label class="block text-sm text-slate-600">Especialidad *</label>
+          <input id="especialidad" required
+            class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" />
+        </div>
+        <div>
+          <label class="block text-sm text-slate-600">Teléfono</label>
+          <input id="telefono"
+            class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" />
+        </div>
+        <div id="medico-error" class="hidden text-sm text-red-700 bg-red-50 border border-red-200 rounded p-2"></div>
+        <button class="w-full bg-blue-700 hover:bg-blue-800 text-white font-semibold py-2 rounded-lg">
+          Crear médico
+        </button>
+      </form>
+      <p class="mt-4 text-xs text-slate-400">Solo administradores pueden registrar médicos.</p>
+    </section>
+
+    <!-- Columna derecha: listado + horarios -->
+    <section class="bg-white rounded-2xl shadow p-5 lg:col-span-2">
+      <h2 class="text-lg font-semibold text-slate-800 mb-4">Médicos activos</h2>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead class="bg-slate-100 text-slate-600 text-left">
+            <tr>
+              <th class="px-3 py-2">Nombre</th>
+              <th class="px-3 py-2">Especialidad</th>
+              <th class="px-3 py-2">Teléfono</th>
+              <th class="px-3 py-2 text-right">Horarios</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-medicos" class="divide-y divide-slate-100"></tbody>
+        </table>
+      </div>
+
+      <!-- Panel de horarios (aparece al seleccionar médico) -->
+      <div id="horarios-panel" class="hidden mt-6 border-t border-slate-200 pt-5">
+        <h3 class="font-semibold text-slate-800 mb-3">
+          Horarios de <span id="horarios-medico-nombre"></span>
+        </h3>
+
+        <form id="horario-form" class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+          <div>
+            <label class="block text-xs text-slate-600">Día</label>
+            <select id="dia_semana" class="mt-1 w-full rounded-lg border border-slate-300 px-2 py-2">
+              <option value="1">Lunes</option>
+              <option value="2">Martes</option>
+              <option value="3">Miércoles</option>
+              <option value="4">Jueves</option>
+              <option value="5">Viernes</option>
+              <option value="6">Sábado</option>
+              <option value="7">Domingo</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs text-slate-600">Inicio</label>
+            <input type="time" id="hora_inicio" required
+              class="mt-1 w-full rounded-lg border border-slate-300 px-2 py-2" />
+          </div>
+          <div>
+            <label class="block text-xs text-slate-600">Fin</label>
+            <input type="time" id="hora_fin" required
+              class="mt-1 w-full rounded-lg border border-slate-300 px-2 py-2" />
+          </div>
+          <div class="flex items-end">
+            <button class="w-full bg-blue-700 hover:bg-blue-800 text-white text-sm font-semibold py-2 rounded-lg">
+              Añadir
+            </button>
+          </div>
+        </form>
+
+        <ul id="horarios-list" class="space-y-1 text-sm"></ul>
+      </div>
+    </section>
+  </main>
+
+  <script src="/static/js/app.js"></script>
+  <script>
+    SGCM.requireAuth();
+
+    const DIAS = { 1: "Lun", 2: "Mar", 3: "Mié", 4: "Jue", 5: "Vie", 6: "Sáb", 7: "Dom" };
+    let medicoSeleccionado = null;
+
+    (async () => {
+      const me = await SGCM.me();
+      document.getElementById("user-info").textContent = `${me.nombre} (${me.rol})`;
+    })();
+
+    document.getElementById("logout").addEventListener("click", () => {
+      SGCM.logout();
+      window.location.href = "/login.html";
+    });
+
+    async function cargarMedicos() {
+      const data = await SGCM.api("/medicos");
+      const tbody = document.getElementById("tbody-medicos");
+      tbody.innerHTML = "";
+      if (data.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="4" class="text-center text-slate-400 py-6">Sin médicos</td></tr>`;
+        return;
+      }
+      for (const m of data) {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td class="px-3 py-2 font-medium">${m.nombre}</td>
+          <td class="px-3 py-2">${m.especialidad}</td>
+          <td class="px-3 py-2">${m.telefono || "—"}</td>
+          <td class="px-3 py-2 text-right">
+            <button data-id="${m.id}" data-nombre="${m.nombre}" class="ver-btn text-blue-700 hover:underline">
+              Gestionar
+            </button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      }
+      tbody.querySelectorAll(".ver-btn").forEach((b) =>
+        b.addEventListener("click", () => abrirHorarios(b.dataset.id, b.dataset.nombre))
+      );
+    }
+
+    async function abrirHorarios(medicoId, nombre) {
+      medicoSeleccionado = parseInt(medicoId);
+      document.getElementById("horarios-medico-nombre").textContent = nombre;
+      document.getElementById("horarios-panel").classList.remove("hidden");
+      await cargarHorarios();
+    }
+
+    async function cargarHorarios() {
+      const data = await SGCM.api(`/medicos/${medicoSeleccionado}/horarios`);
+      const ul = document.getElementById("horarios-list");
+      ul.innerHTML = "";
+      if (data.length === 0) {
+        ul.innerHTML = `<li class="text-slate-400">Sin horarios definidos</li>`;
+        return;
+      }
+      for (const h of data) {
+        const li = document.createElement("li");
+        li.className = "flex items-center justify-between bg-slate-50 px-3 py-2 rounded";
+        li.innerHTML = `
+          <span><strong>${DIAS[h.dia_semana]}</strong> · ${h.hora_inicio.slice(0,5)} – ${h.hora_fin.slice(0,5)}</span>
+          <button data-id="${h.id}" class="del-h text-red-600 text-xs hover:underline">Eliminar</button>
+        `;
+        ul.appendChild(li);
+      }
+      ul.querySelectorAll(".del-h").forEach((b) =>
+        b.addEventListener("click", async () => {
+          if (!confirm("¿Eliminar horario?")) return;
+          await SGCM.api(`/medicos/horarios/${b.dataset.id}`, { method: "DELETE" });
+          await cargarHorarios();
+        })
+      );
+    }
+
+    document.getElementById("medico-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const errBox = document.getElementById("medico-error");
+      errBox.classList.add("hidden");
+      try {
+        await SGCM.api("/medicos", {
+          method: "POST",
+          body: JSON.stringify({
+            nombre: document.getElementById("nombre").value,
+            especialidad: document.getElementById("especialidad").value,
+            telefono: document.getElementById("telefono").value || null,
+          }),
+        });
+        e.target.reset();
+        await cargarMedicos();
+      } catch (err) {
+        errBox.textContent = err.message;
+        errBox.classList.remove("hidden");
+      }
+    });
+
+    document.getElementById("horario-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      try {
+        await SGCM.api(`/medicos/${medicoSeleccionado}/horarios`, {
+          method: "POST",
+          body: JSON.stringify({
+            id_medico: medicoSeleccionado,
+            dia_semana: parseInt(document.getElementById("dia_semana").value),
+            hora_inicio: document.getElementById("hora_inicio").value + ":00",
+            hora_fin: document.getElementById("hora_fin").value + ":00",
+          }),
+        });
+        e.target.reset();
+        await cargarHorarios();
+      } catch (err) {
+        alert(err.message);
+      }
+    });
+
+    cargarMedicos();
+  </script>
+</body>
+</html>
