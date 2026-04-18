@@ -65,5 +65,19 @@ const SGCM = (() => {
     return api("/auth/me");
   }
 
-  return { login, logout, requireAuth, api, me, getToken };
+  function applyNavPermissions(rol) {
+    const isAdmin = rol === "admin";
+    const isStaff = rol === "admin" || rol === "secretaria";
+    document.querySelectorAll("[data-role]").forEach((el) => {
+      const required = el.dataset.role;
+      let visible = false;
+      if (required === "admin") visible = isAdmin;
+      else if (required === "staff") visible = isStaff;
+      else if (required === "medico") visible = rol === "medico";
+      else if (required === "secretaria") visible = rol === "secretaria";
+      el.style.display = visible ? "" : "none";
+    });
+  }
+
+  return { login, logout, requireAuth, api, me, getToken, applyNavPermissions };
 })();

@@ -17,7 +17,7 @@
         <a href="/calendar.html" class="hover:underline">Calendario</a>
         <a href="/pacientes.html" class="font-semibold underline">Pacientes</a>
         <a href="/medicos.html" class="hover:underline">Médicos</a>
-        <a href="/auditoria.html" class="hover:underline">Auditoría</a>
+        <span data-role="admin" style="display:none"><a href="/auditoria.html" class="hover:underline">Auditoría</a></span>
         <span id="user-info" class="ml-3 text-blue-200"></span>
         <button id="logout" class="bg-blue-900 hover:bg-blue-950 px-3 py-1 rounded">Salir</button>
       </nav>
@@ -92,7 +92,7 @@
               <th class="px-3 py-2">Nombre</th>
               <th class="px-3 py-2">Apellidos</th>
               <th class="px-3 py-2">Teléfono</th>
-              <th class="px-3 py-2 text-right">Acciones</th>
+              <th data-role="staff" style="display:none" class="px-3 py-2 text-right">Acciones</th>
             </tr>
           </thead>
           <tbody id="tbody" class="divide-y divide-slate-100"></tbody>
@@ -105,9 +105,14 @@
   <script>
     SGCM.requireAuth();
 
+    let currentUserRol = null;
+
     (async () => {
       const me = await SGCM.me();
       document.getElementById("user-info").textContent = `${me.nombre} (${me.rol})`;
+      currentUserRol = me.rol;
+      SGCM.applyNavPermissions(me.rol);
+      await cargar();
     })();
 
     document.getElementById("logout").addEventListener("click", () => {
@@ -139,6 +144,7 @@
         tbody.innerHTML = `<tr><td colspan="5" class="text-center text-slate-400 py-6">Sin resultados</td></tr>`;
         return;
       }
+      const isStaff = currentUserRol === "admin" || currentUserRol === "secretaria";
       for (const p of data) {
         const tr = document.createElement("tr");
         tr.innerHTML = `
@@ -146,10 +152,10 @@
           <td class="px-3 py-2">${p.nombre}</td>
           <td class="px-3 py-2">${p.apellidos}</td>
           <td class="px-3 py-2">${p.telefono}</td>
-          <td class="px-3 py-2 text-right">
+          ${isStaff ? `<td class="px-3 py-2 text-right">
             <button data-id="${p.id}" class="edit-btn text-blue-700 hover:underline mr-3">Editar</button>
             <button data-id="${p.id}" class="del-btn text-red-600 hover:underline">Eliminar</button>
-          </td>
+          </td>` : ""}
         `;
         tbody.appendChild(tr);
       }
@@ -220,8 +226,6 @@
       clearTimeout(searchTimer);
       searchTimer = setTimeout(() => cargar(e.target.value), 250);
     });
-
-    cargar();
   </script>
 </body>
 </html>

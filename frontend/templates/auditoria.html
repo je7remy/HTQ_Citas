@@ -17,7 +17,7 @@
         <a href="/calendar.html" class="hover:underline">Calendario</a>
         <a href="/pacientes.html" class="hover:underline">Pacientes</a>
         <a href="/medicos.html" class="hover:underline">Médicos</a>
-        <a href="/auditoria.html" class="font-semibold underline">Auditoría</a>
+        <span data-role="admin" style="display:none"><a href="/auditoria.html" class="font-semibold underline">Auditoría</a></span>
         <span id="user-info" class="ml-3 text-blue-200"></span>
         <button id="logout" class="bg-blue-900 hover:bg-blue-950 px-3 py-1 rounded">Salir</button>
       </nav>
@@ -126,6 +126,7 @@
       try {
         const me = await SGCM.me();
         document.getElementById("user-info").textContent = `${me.nombre} (${me.rol})`;
+        SGCM.applyNavPermissions(me.rol);
         if (me.rol !== "admin") {
           showError("Esta pantalla es solo para administradores.");
         }
