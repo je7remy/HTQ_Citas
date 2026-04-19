@@ -10,6 +10,7 @@ python-multipart==0.0.12
 pydantic==2.9.2
 pydantic-settings==2.6.0
 weasyprint==62.3
+pydyf==0.10.0
 jinja2==3.1.4
 python-dotenv==1.0.1
 email-validator==2.2.0
