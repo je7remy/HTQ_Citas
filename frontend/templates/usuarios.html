@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SGCM — Usuarios</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-100 min-h-screen">
+  <header class="bg-blue-800 text-white shadow">
+    <div class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+      <div>
+        <h1 class="text-xl font-bold">SGCM — Gestión de Usuarios</h1>
+        <p class="text-xs text-blue-200">CU-02 · Solo administradores</p>
+      </div>
+      <nav class="flex items-center gap-3 text-sm">
+        <a href="/calendar.html" class="hover:underline">Calendario</a>
+        <a href="/pacientes.html" class="hover:underline">Pacientes</a>
+        <a href="/medicos.html" class="hover:underline">Médicos</a>
+        <span data-role="admin" style="display:none"><a href="/usuarios.html" class="font-semibold underline">Usuarios</a></span>
+        <span data-role="admin" style="display:none"><a href="/auditoria.html" class="hover:underline">Auditoría</a></span>
+        <span id="user-info" class="ml-3 text-blue-200"></span>
+        <button id="logout" class="bg-blue-900 hover:bg-blue-950 px-3 py-1 rounded">Salir</button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto p-6 space-y-6">
+    <!-- Formulario de alta -->
+    <section class="bg-white rounded-2xl shadow p-5">
+      <h2 class="text-lg font-semibold text-slate-800 mb-4">Nuevo usuario</h2>
+      <form id="form-usuario" class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div>
+          <label class="block text-sm text-slate-600">Nombre *</label>
+          <input id="u-nombre" required
+            class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" />
+        </div>
+        <div>
+          <label class="block text-sm text-slate-600">Email *</label>
+          <input id="u-email" type="email" required
+            class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" />
+        </div>
+        <div>
+          <label class="block text-sm text-slate-600">Contraseña *</label>
+          <input id="u-password" type="password" required minlength="8"
+            placeholder="Mín. 8 caracteres"
+            class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" />
+        </div>
+        <div>
+          <label class="block text-sm text-slate-600">Rol *</label>
+          <select id="u-rol" required
+            class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2">
+            <option value="secretaria">Secretaria</option>
+            <option value="medico">Médico</option>
+            <option value="admin">Administrador</option>
+          </select>
+        </div>
+        <div id="u-error" class="hidden md:col-span-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded p-2"></div>
+        <div class="md:col-span-4">
+          <button type="submit"
+            class="bg-blue-700 hover:bg-blue-800 text-white font-semibold px-4 py-2 rounded-lg">
+            Crear usuario
+          </button>
+        </div>
+      </form>
+    </section>
+
+    <!-- Listado -->
+    <section class="bg-white rounded-2xl shadow p-5">
+      <h2 class="text-lg font-semibold text-slate-800 mb-4">Usuarios registrados</h2>
+      <div id="lista-error" class="hidden mb-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded p-2"></div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead class="bg-slate-100 text-slate-600 text-left">
+            <tr>
+              <th class="px-3 py-2">#</th>
+              <th class="px-3 py-2">Nombre</th>
+              <th class="px-3 py-2">Email</th>
+              <th class="px-3 py-2">Rol</th>
+              <th class="px-3 py-2">Estado</th>
+              <th class="px-3 py-2 text-right">Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-usuarios" class="divide-y divide-slate-100"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <!-- ══════════════ MODAL: EDITAR USUARIO ══════════════ -->
+  <div id="modal-editar-usuario" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-sm">
+      <div class="flex items-center justify-between px-6 py-4 border-b border-slate-200">
+        <h2 class="text-lg font-semibold text-slate-800">Editar usuario</h2>
+        <button id="eu-cerrar" class="text-slate-400 hover:text-slate-600 text-xl font-bold">&times;</button>
+      </div>
+      <form id="form-editar-usuario" class="p-6 space-y-4">
+        <input type="hidden" id="eu-id" />
+        <div>
+          <label class="block text-sm text-slate-600">Nombre</label>
+          <input id="eu-nombre"
+            class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" />
+        </div>
+        <div>
+          <label class="block text-sm text-slate-600">Rol</label>
+          <select id="eu-rol" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2">
+            <option value="secretaria">Secretaria</option>
+            <option value="medico">Médico</option>
+            <option value="admin">Administrador</option>
+          </select>
+        </div>
+        <div class="flex items-center gap-2">
+          <input type="checkbox" id="eu-activo" class="rounded" />
+          <label for="eu-activo" class="text-sm text-slate-600">Usuario activo</label>
+        </div>
+        <div id="eu-error" class="hidden text-sm text-red-700 bg-red-50 border border-red-200 rounded p-2"></div>
+        <div class="flex gap-2">
+          <button type="submit"
+            class="flex-1 bg-blue-700 hover:bg-blue-800 text-white font-semibold py-2 rounded-lg">
+            Guardar
+          </button>
+          <button type="button" id="eu-cancelar"
+            class="bg-slate-200 hover:bg-slate-300 text-slate-800 px-4 py-2 rounded-lg">
+            Cancelar
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="/static/js/app.js"></script>
+  <script>
+    SGCM.requireAuth();
+
+    (async () => {
+      const me = await SGCM.me();
+      document.getElementById("user-info").textContent = `${me.nombre} (${me.rol})`;
+      SGCM.applyNavPermissions(me.rol);
+      if (me.rol !== "admin") {
+        document.getElementById("lista-error").textContent = "Esta pantalla es solo para administradores.";
+        document.getElementById("lista-error").classList.remove("hidden");
+        return;
+      }
+      await cargarUsuarios();
+    })();
+
+    document.getElementById("logout").addEventListener("click", () => {
+      SGCM.logout();
+      window.location.href = "/login.html";
+    });
+
+    const ROL_BADGE = {
+      admin:      "bg-purple-100 text-purple-800",
+      secretaria: "bg-blue-100 text-blue-800",
+      medico:     "bg-green-100 text-green-800",
+    };
+
+    async function cargarUsuarios() {
+      try {
+        const data = await SGCM.api("/usuarios");
+        const tbody = document.getElementById("tbody-usuarios");
+        tbody.innerHTML = "";
+        for (const u of data) {
+          const tr = document.createElement("tr");
+          const badgeRol = ROL_BADGE[u.rol] || "bg-slate-100 text-slate-600";
+          tr.innerHTML = `
+            <td class="px-3 py-2 text-slate-400">${u.id}</td>
+            <td class="px-3 py-2 font-medium">${u.nombre}</td>
+            <td class="px-3 py-2 text-slate-600">${u.email}</td>
+            <td class="px-3 py-2">
+              <span class="px-2 py-0.5 rounded text-xs font-semibold ${badgeRol}">${u.rol}</span>
+            </td>
+            <td class="px-3 py-2">
+              <span class="${u.activo ? "text-green-700" : "text-slate-400"} text-xs font-semibold">
+                ${u.activo ? "Activo" : "Inactivo"}
+              </span>
+            </td>
+            <td class="px-3 py-2 text-right">
+              <button data-id="${u.id}" data-nombre="${u.nombre}" data-rol="${u.rol}" data-activo="${u.activo}"
+                class="edit-u-btn text-blue-700 hover:underline text-sm">
+                Editar
+              </button>
+            </td>
+          `;
+          tbody.appendChild(tr);
+        }
+        tbody.querySelectorAll(".edit-u-btn").forEach((b) =>
+          b.addEventListener("click", () => abrirModalEditarUsuario(b.dataset))
+        );
+      } catch (err) {
+        document.getElementById("lista-error").textContent = err.message;
+        document.getElementById("lista-error").classList.remove("hidden");
+      }
+    }
+
+    // Alta de usuario
+    document.getElementById("form-usuario").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const errBox = document.getElementById("u-error");
+      errBox.classList.add("hidden");
+      try {
+        await SGCM.api("/usuarios", {
+          method: "POST",
+          body: JSON.stringify({
+            nombre: document.getElementById("u-nombre").value,
+            email: document.getElementById("u-email").value,
+            password: document.getElementById("u-password").value,
+            rol: document.getElementById("u-rol").value,
+          }),
+        });
+        e.target.reset();
+        await cargarUsuarios();
+      } catch (err) {
+        errBox.textContent = err.message;
+        errBox.classList.remove("hidden");
+      }
+    });
+
+    // Modal editar usuario
+    document.getElementById("eu-cerrar").addEventListener("click", cerrarModalEditarUsuario);
+    document.getElementById("eu-cancelar").addEventListener("click", cerrarModalEditarUsuario);
+
+    function abrirModalEditarUsuario(data) {
+      document.getElementById("eu-id").value = data.id;
+      document.getElementById("eu-nombre").value = data.nombre;
+      document.getElementById("eu-rol").value = data.rol;
+      document.getElementById("eu-activo").checked = data.activo === "true";
+      document.getElementById("eu-error").classList.add("hidden");
+      document.getElementById("modal-editar-usuario").classList.remove("hidden");
+    }
+
+    function cerrarModalEditarUsuario() {
+      document.getElementById("modal-editar-usuario").classList.add("hidden");
+    }
+
+    document.getElementById("form-editar-usuario").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const errBox = document.getElementById("eu-error");
+      errBox.classList.add("hidden");
+      const id = document.getElementById("eu-id").value;
+      try {
+        await SGCM.api(`/usuarios/${id}`, {
+          method: "PATCH",
+          body: JSON.stringify({
+            nombre: document.getElementById("eu-nombre").value,
+            rol: document.getElementById("eu-rol").value,
+            activo: document.getElementById("eu-activo").checked,
+          }),
+        });
+        cerrarModalEditarUsuario();
+        await cargarUsuarios();
+      } catch (err) {
+        errBox.textContent = err.message;
+        errBox.classList.remove("hidden");
+      }
+    });
+  </script>
+</body>
+</html>

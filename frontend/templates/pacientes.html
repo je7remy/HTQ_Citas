@@ -17,6 +17,8 @@
         <a href="/calendar.html" class="hover:underline">Calendario</a>
         <a href="/pacientes.html" class="font-semibold underline">Pacientes</a>
         <a href="/medicos.html" class="hover:underline">Médicos</a>
+        <span data-role="medico" style="display:none"><a href="/agenda.html" class="hover:underline">Mi Agenda</a></span>
+        <span data-role="admin" style="display:none"><a href="/usuarios.html" class="hover:underline">Usuarios</a></span>
         <span data-role="admin" style="display:none"><a href="/auditoria.html" class="hover:underline">Auditoría</a></span>
         <span id="user-info" class="ml-3 text-blue-200"></span>
         <button id="logout" class="bg-blue-900 hover:bg-blue-950 px-3 py-1 rounded">Salir</button>
@@ -25,15 +27,15 @@
   </header>
 
   <main class="max-w-7xl mx-auto p-6 space-y-6">
-    <!-- Formulario de alta / edición -->
-    <section class="bg-white rounded-2xl shadow p-5">
+    <!-- Formulario de alta / edición (solo staff) -->
+    <section id="form-section" data-role="staff" style="display:none" class="bg-white rounded-2xl shadow p-5">
       <h2 id="form-title" class="text-lg font-semibold text-slate-800 mb-4">Nuevo paciente</h2>
       <form id="paciente-form" class="grid grid-cols-1 md:grid-cols-3 gap-4">
         <input type="hidden" id="paciente-id" />
         <div>
           <label class="block text-sm text-slate-600">Cédula *</label>
-          <input id="cedula" required maxlength="13"
-            class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" />
+          <input id="cedula" required maxlength="13" placeholder="000-0000000-0"
+            class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-mono" />
         </div>
         <div>
           <label class="block text-sm text-slate-600">Nombre *</label>
@@ -47,7 +49,7 @@
         </div>
         <div>
           <label class="block text-sm text-slate-600">Teléfono *</label>
-          <input id="telefono" required
+          <input id="telefono" required placeholder="(000) 000-0000" maxlength="14"
             class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" />
         </div>
         <div>
@@ -104,6 +106,9 @@
   <script src="/static/js/app.js"></script>
   <script>
     SGCM.requireAuth();
+
+    SGCM.applyMaskCedula(document.getElementById("cedula"));
+    SGCM.applyMaskTelefono(document.getElementById("telefono"));
 
     let currentUserRol = null;
 
@@ -170,11 +175,11 @@
     async function editar(id) {
       const p = await SGCM.api(`/pacientes/${id}`);
       document.getElementById("paciente-id").value = p.id;
-      document.getElementById("cedula").value = p.cedula;
+      document.getElementById("cedula").value = SGCM.formatCedula(p.cedula);
       document.getElementById("cedula").disabled = true;
       document.getElementById("nombre").value = p.nombre;
       document.getElementById("apellidos").value = p.apellidos;
-      document.getElementById("telefono").value = p.telefono;
+      document.getElementById("telefono").value = SGCM.formatTelefono(p.telefono);
       document.getElementById("fecha_nacimiento").value = p.fecha_nacimiento || "";
       document.getElementById("direccion").value = p.direccion || "";
       formTitle.textContent = `Editar paciente #${p.id}`;
@@ -200,7 +205,7 @@
         cedula: document.getElementById("cedula").value,
         nombre: document.getElementById("nombre").value,
         apellidos: document.getElementById("apellidos").value,
-        telefono: document.getElementById("telefono").value,
+        telefono: SGCM.stripDigits(document.getElementById("telefono").value),
         fecha_nacimiento: document.getElementById("fecha_nacimiento").value || null,
         direccion: document.getElementById("direccion").value || null,
       };

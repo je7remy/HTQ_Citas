@@ -17,6 +17,8 @@
         <a href="/calendar.html" class="hover:underline">Calendario</a>
         <a href="/pacientes.html" class="hover:underline">Pacientes</a>
         <a href="/medicos.html" class="font-semibold underline">Médicos</a>
+        <span data-role="medico" style="display:none"><a href="/agenda.html" class="hover:underline">Mi Agenda</a></span>
+        <span data-role="admin" style="display:none"><a href="/usuarios.html" class="hover:underline">Usuarios</a></span>
         <span data-role="admin" style="display:none"><a href="/auditoria.html" class="hover:underline">Auditoría</a></span>
         <span id="user-info" class="ml-3 text-blue-200"></span>
         <button id="logout" class="bg-blue-900 hover:bg-blue-950 px-3 py-1 rounded">Salir</button>
@@ -41,7 +43,7 @@
         </div>
         <div>
           <label class="block text-sm text-slate-600">Teléfono</label>
-          <input id="telefono"
+          <input id="telefono" placeholder="(000) 000-0000" maxlength="14"
             class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" />
         </div>
         <div id="medico-error" class="hidden text-sm text-red-700 bg-red-50 border border-red-200 rounded p-2"></div>
@@ -62,7 +64,7 @@
               <th class="px-3 py-2">Nombre</th>
               <th class="px-3 py-2">Especialidad</th>
               <th class="px-3 py-2">Teléfono</th>
-              <th class="px-3 py-2 text-right">Horarios</th>
+              <th class="px-3 py-2 text-right">Acciones</th>
             </tr>
           </thead>
           <tbody id="tbody-medicos" class="divide-y divide-slate-100"></tbody>
@@ -75,51 +77,100 @@
           Horarios de <span id="horarios-medico-nombre"></span>
         </h3>
 
-        <form id="horario-form" class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-          <div>
-            <label class="block text-xs text-slate-600">Día</label>
-            <select id="dia_semana" class="mt-1 w-full rounded-lg border border-slate-300 px-2 py-2">
-              <option value="1">Lunes</option>
-              <option value="2">Martes</option>
-              <option value="3">Miércoles</option>
-              <option value="4">Jueves</option>
-              <option value="5">Viernes</option>
-              <option value="6">Sábado</option>
-              <option value="7">Domingo</option>
-            </select>
-          </div>
-          <div>
-            <label class="block text-xs text-slate-600">Inicio</label>
-            <input type="time" id="hora_inicio" required
-              class="mt-1 w-full rounded-lg border border-slate-300 px-2 py-2" />
-          </div>
-          <div>
-            <label class="block text-xs text-slate-600">Fin</label>
-            <input type="time" id="hora_fin" required
-              class="mt-1 w-full rounded-lg border border-slate-300 px-2 py-2" />
-          </div>
-          <div class="flex items-end">
-            <button class="w-full bg-blue-700 hover:bg-blue-800 text-white text-sm font-semibold py-2 rounded-lg">
-              Añadir
-            </button>
-          </div>
-        </form>
-
-        <ul id="horarios-list" class="space-y-1 text-sm"></ul>
+        <div id="horario-form-container">
+          <form id="horario-form" class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+            <div>
+              <label class="block text-xs text-slate-600">Día</label>
+              <select id="dia_semana" class="mt-1 w-full rounded-lg border border-slate-300 px-2 py-2">
+                <option value="1">Lunes</option>
+                <option value="2">Martes</option>
+                <option value="3">Miércoles</option>
+                <option value="4">Jueves</option>
+                <option value="5">Viernes</option>
+                <option value="6">Sábado</option>
+                <option value="7">Domingo</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs text-slate-600">Inicio</label>
+              <input type="time" id="hora_inicio" required
+                class="mt-1 w-full rounded-lg border border-slate-300 px-2 py-2" />
+            </div>
+            <div>
+              <label class="block text-xs text-slate-600">Fin</label>
+              <input type="time" id="hora_fin" required
+                class="mt-1 w-full rounded-lg border border-slate-300 px-2 py-2" />
+            </div>
+            <div class="flex items-end">
+              <button class="w-full bg-blue-700 hover:bg-blue-800 text-white text-sm font-semibold py-2 rounded-lg">
+                Añadir
+              </button>
+            </div>
+          </form>
+        </div>
+<ul id="horarios-list" class="space-y-1 text-sm"></ul>
       </div>
     </section>
   </main>
+
+  <!-- ══════════════ MODAL: EDITAR MÉDICO ══════════════ -->
+  <div id="modal-editar-medico" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-md">
+      <div class="flex items-center justify-between px-6 py-4 border-b border-slate-200">
+        <h2 class="text-lg font-semibold text-slate-800">Editar médico</h2>
+        <button id="em-cerrar" class="text-slate-400 hover:text-slate-600 text-xl font-bold">&times;</button>
+      </div>
+      <form id="form-editar-medico" class="p-6 space-y-4">
+        <input type="hidden" id="em-id" />
+        <div>
+          <label class="block text-sm text-slate-600">Nombre *</label>
+          <input id="em-nombre" required
+            class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" />
+        </div>
+        <div>
+          <label class="block text-sm text-slate-600">Especialidad *</label>
+          <input id="em-especialidad" required
+            class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" />
+        </div>
+        <div>
+          <label class="block text-sm text-slate-600">Teléfono</label>
+          <input id="em-telefono" placeholder="(000) 000-0000" maxlength="14"
+            class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" />
+        </div>
+        <div class="flex items-center gap-2">
+          <input type="checkbox" id="em-activo" class="rounded" />
+          <label for="em-activo" class="text-sm text-slate-600">Médico activo</label>
+        </div>
+        <div id="em-error" class="hidden text-sm text-red-700 bg-red-50 border border-red-200 rounded p-2"></div>
+        <div class="flex gap-2 pt-1">
+          <button type="submit"
+            class="flex-1 bg-blue-700 hover:bg-blue-800 text-white font-semibold py-2 rounded-lg">
+            Guardar cambios
+          </button>
+          <button type="button" id="em-cancelar"
+            class="bg-slate-200 hover:bg-slate-300 text-slate-800 px-4 py-2 rounded-lg">
+            Cancelar
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
 
   <script src="/static/js/app.js"></script>
   <script>
     SGCM.requireAuth();
 
+    SGCM.applyMaskTelefono(document.getElementById("telefono"));
+    SGCM.applyMaskTelefono(document.getElementById("em-telefono"));
+
     const DIAS = { 1: "Lun", 2: "Mar", 3: "Mié", 4: "Jue", 5: "Vie", 6: "Sáb", 7: "Dom" };
     let medicoSeleccionado = null;
+    let currentUserRol = null;
 
     (async () => {
       const me = await SGCM.me();
       document.getElementById("user-info").textContent = `${me.nombre} (${me.rol})`;
+      currentUserRol = me.rol;
       SGCM.applyNavPermissions(me.rol);
     })();
 
@@ -136,16 +187,22 @@
         tbody.innerHTML = `<tr><td colspan="4" class="text-center text-slate-400 py-6">Sin médicos</td></tr>`;
         return;
       }
+      const isAdmin = currentUserRol === "admin";
       for (const m of data) {
         const tr = document.createElement("tr");
         tr.innerHTML = `
           <td class="px-3 py-2 font-medium">${m.nombre}</td>
           <td class="px-3 py-2">${m.especialidad}</td>
-          <td class="px-3 py-2">${m.telefono || "—"}</td>
-          <td class="px-3 py-2 text-right">
-            <button data-id="${m.id}" data-nombre="${m.nombre}" class="ver-btn text-blue-700 hover:underline">
-              Gestionar
+          <td class="px-3 py-2">${m.telefono ? SGCM.formatTelefono(m.telefono) : "—"}</td>
+          <td class="px-3 py-2 text-right flex justify-end gap-3">
+            <button data-id="${m.id}" data-nombre="${m.nombre}" class="ver-btn text-blue-700 hover:underline text-sm">
+              Horarios
             </button>
+            ${isAdmin ? `
+            <button data-id="${m.id}" data-nombre="${m.nombre}" data-especialidad="${m.especialidad}"
+              data-telefono="${m.telefono || ""}" data-activo="${m.activo}"
+              class="edit-btn text-amber-600 hover:underline text-sm">Editar</button>
+            ` : ""}
           </td>
         `;
         tbody.appendChild(tr);
@@ -153,12 +210,19 @@
       tbody.querySelectorAll(".ver-btn").forEach((b) =>
         b.addEventListener("click", () => abrirHorarios(b.dataset.id, b.dataset.nombre))
       );
+      if (isAdmin) {
+        tbody.querySelectorAll(".edit-btn").forEach((b) =>
+          b.addEventListener("click", () => abrirModalEditar(b.dataset))
+        );
+      }
     }
 
     async function abrirHorarios(medicoId, nombre) {
       medicoSeleccionado = parseInt(medicoId);
       document.getElementById("horarios-medico-nombre").textContent = nombre;
       document.getElementById("horarios-panel").classList.remove("hidden");
+      const isAdmin = currentUserRol === "admin";
+      document.getElementById("horario-form-container").style.display = isAdmin ? "" : "none";
       await cargarHorarios();
     }
 
@@ -170,22 +234,25 @@
         ul.innerHTML = `<li class="text-slate-400">Sin horarios definidos</li>`;
         return;
       }
+      const isAdmin = currentUserRol === "admin";
       for (const h of data) {
         const li = document.createElement("li");
         li.className = "flex items-center justify-between bg-slate-50 px-3 py-2 rounded";
         li.innerHTML = `
           <span><strong>${DIAS[h.dia_semana]}</strong> · ${h.hora_inicio.slice(0,5)} – ${h.hora_fin.slice(0,5)}</span>
-          <button data-id="${h.id}" class="del-h text-red-600 text-xs hover:underline">Eliminar</button>
+          ${isAdmin ? `<button data-id="${h.id}" class="del-h text-red-600 text-xs hover:underline">Eliminar</button>` : ""}
         `;
         ul.appendChild(li);
       }
-      ul.querySelectorAll(".del-h").forEach((b) =>
-        b.addEventListener("click", async () => {
-          if (!confirm("¿Eliminar horario?")) return;
-          await SGCM.api(`/medicos/horarios/${b.dataset.id}`, { method: "DELETE" });
-          await cargarHorarios();
-        })
-      );
+      if (isAdmin) {
+        ul.querySelectorAll(".del-h").forEach((b) =>
+          b.addEventListener("click", async () => {
+            if (!confirm("¿Eliminar horario?")) return;
+            await SGCM.api(`/medicos/horarios/${b.dataset.id}`, { method: "DELETE" });
+            await cargarHorarios();
+          })
+        );
+      }
     }
 
     document.getElementById("medico-form").addEventListener("submit", async (e) => {
@@ -198,7 +265,7 @@
           body: JSON.stringify({
             nombre: document.getElementById("nombre").value,
             especialidad: document.getElementById("especialidad").value,
-            telefono: document.getElementById("telefono").value || null,
+            telefono: SGCM.stripDigits(document.getElementById("telefono").value) || null,
           }),
         });
         e.target.reset();
@@ -225,6 +292,47 @@
         await cargarHorarios();
       } catch (err) {
         alert(err.message);
+      }
+    });
+
+    // ══════════════ MODAL EDITAR MÉDICO ══════════════
+    document.getElementById("em-cerrar").addEventListener("click", cerrarModalEditar);
+    document.getElementById("em-cancelar").addEventListener("click", cerrarModalEditar);
+
+    function abrirModalEditar(data) {
+      document.getElementById("em-id").value = data.id;
+      document.getElementById("em-nombre").value = data.nombre;
+      document.getElementById("em-especialidad").value = data.especialidad;
+      document.getElementById("em-telefono").value = SGCM.formatTelefono(data.telefono);
+      document.getElementById("em-activo").checked = data.activo === "true";
+      document.getElementById("em-error").classList.add("hidden");
+      document.getElementById("modal-editar-medico").classList.remove("hidden");
+    }
+
+    function cerrarModalEditar() {
+      document.getElementById("modal-editar-medico").classList.add("hidden");
+    }
+
+    document.getElementById("form-editar-medico").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const errBox = document.getElementById("em-error");
+      errBox.classList.add("hidden");
+      const id = document.getElementById("em-id").value;
+      try {
+        await SGCM.api(`/medicos/${id}`, {
+          method: "PATCH",
+          body: JSON.stringify({
+            nombre: document.getElementById("em-nombre").value,
+            especialidad: document.getElementById("em-especialidad").value,
+            telefono: SGCM.stripDigits(document.getElementById("em-telefono").value) || null,
+            activo: document.getElementById("em-activo").checked,
+          }),
+        });
+        cerrarModalEditar();
+        await cargarMedicos();
+      } catch (err) {
+        errBox.textContent = err.message;
+        errBox.classList.remove("hidden");
       }
     });
 

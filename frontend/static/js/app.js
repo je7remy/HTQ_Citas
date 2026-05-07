@@ -3,6 +3,52 @@ const SGCM = (() => {
   const API = "/api/v1";
   const TOKEN_KEY = "sgcm_token";
 
+  /* ---- Masks ---- */
+  function formatCedula(v) {
+    const d = (v || "").replace(/\D/g, "").slice(0, 11);
+    if (d.length <= 3) return d;
+    if (d.length <= 10) return d.slice(0, 3) + "-" + d.slice(3);
+    return d.slice(0, 3) + "-" + d.slice(3, 10) + "-" + d.slice(10);
+  }
+
+  function formatTelefono(v) {
+    const d = (v || "").replace(/\D/g, "").slice(0, 10);
+    if (!d.length) return "";
+    if (d.length <= 3) return "(" + d;
+    if (d.length <= 6) return "(" + d.slice(0, 3) + ") " + d.slice(3);
+    return "(" + d.slice(0, 3) + ") " + d.slice(3, 6) + "-" + d.slice(6);
+  }
+
+  function stripDigits(v) {
+    return (v || "").replace(/\D/g, "");
+  }
+
+  function applyMaskCedula(el) {
+    if (!el) return;
+    el.placeholder = "000-0000000-0";
+    el.setAttribute("maxlength", "13");
+    el.addEventListener("input", function () {
+      const pos = this.selectionStart;
+      const oldLen = this.value.length;
+      this.value = formatCedula(this.value);
+      const newLen = this.value.length;
+      this.setSelectionRange(pos + (newLen - oldLen), pos + (newLen - oldLen));
+    });
+  }
+
+  function applyMaskTelefono(el) {
+    if (!el) return;
+    el.placeholder = "(000) 000-0000";
+    el.setAttribute("maxlength", "14");
+    el.addEventListener("input", function () {
+      const pos = this.selectionStart;
+      const oldLen = this.value.length;
+      this.value = formatTelefono(this.value);
+      const newLen = this.value.length;
+      this.setSelectionRange(pos + (newLen - oldLen), pos + (newLen - oldLen));
+    });
+  }
+
   function getToken() {
     return localStorage.getItem(TOKEN_KEY);
   }
@@ -79,5 +125,8 @@ const SGCM = (() => {
     });
   }
 
-  return { login, logout, requireAuth, api, me, getToken, applyNavPermissions };
+  return {
+    login, logout, requireAuth, api, me, getToken, applyNavPermissions,
+    applyMaskCedula, applyMaskTelefono, formatCedula, formatTelefono, stripDigits,
+  };
 })();
