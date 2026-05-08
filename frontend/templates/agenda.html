@@ -135,6 +135,8 @@
           return;
         }
 
+        const ahora = new Date();
+
         for (const cita of data) {
           const card = document.createElement("div");
           card.className = "flex items-center justify-between bg-slate-50 rounded-xl px-4 py-3 border border-slate-200";
@@ -145,10 +147,38 @@
             ? "bg-green-100 text-green-800"
             : "bg-gray-100 text-gray-600";
 
+          // La hora de la cita ya llegó si ahora >= fecha+hora de la cita
+          const fechaHoraCita = new Date(cita.fecha + "T" + cita.hora);
+          const puedeAtender = cita.estado === "pendiente" && ahora >= fechaHoraCita;
+          const horaFormato = cita.hora.slice(0, 5);
+          const fechaFormato = fechaHoraCita.toLocaleDateString("es-DO", {
+            day: "2-digit", month: "2-digit", year: "numeric"
+          });
+
+          let accionHTML;
+          if (cita.estado === "pendiente") {
+            if (puedeAtender) {
+              accionHTML = `<button data-id="${cita.id}" data-info="Paciente #${cita.id_paciente} · ${horaFormato}"
+                  class="atender-btn bg-green-700 hover:bg-green-800 text-white text-sm font-semibold px-3 py-1.5 rounded-lg">
+                  Registrar consulta
+                </button>`;
+            } else {
+              accionHTML = `<div class="text-right">
+                <button disabled
+                  class="bg-slate-300 text-slate-500 cursor-not-allowed text-sm font-semibold px-3 py-1.5 rounded-lg">
+                  Registrar consulta
+                </button>
+                <p class="text-xs text-slate-400 mt-1">Disponible a partir de ${fechaFormato} ${horaFormato}</p>
+              </div>`;
+            }
+          } else {
+            accionHTML = `<span class="text-xs text-slate-400">Finalizada</span>`;
+          }
+
           card.innerHTML = `
             <div class="space-y-1">
               <div class="flex items-center gap-2">
-                <span class="font-semibold text-slate-800">${cita.hora.slice(0, 5)}</span>
+                <span class="font-semibold text-slate-800">${horaFormato}</span>
                 <span class="px-2 py-0.5 rounded text-xs font-semibold ${estadoBadge}">${cita.estado}</span>
               </div>
               <div class="text-sm text-slate-600">
@@ -156,15 +186,7 @@
                 ${cita.motivo ? `· <span class="italic">${cita.motivo}</span>` : ""}
               </div>
             </div>
-            <div>
-              ${cita.estado === "pendiente"
-                ? `<button data-id="${cita.id}" data-info="Paciente #${cita.id_paciente} · ${cita.hora.slice(0,5)}"
-                    class="atender-btn bg-green-700 hover:bg-green-800 text-white text-sm font-semibold px-3 py-1.5 rounded-lg">
-                    Registrar consulta
-                  </button>`
-                : `<span class="text-xs text-slate-400">Finalizada</span>`
-              }
-            </div>
+            <div>${accionHTML}</div>
           `;
           lista.appendChild(card);
         }

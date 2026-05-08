@@ -85,3 +85,44 @@ def test_pdf_rango_vacio_genera_pdf(client, auth_as):
 def test_pdf_requiere_autenticacion(client):
     res = client.get("/api/v1/reportes/citas.pdf?desde=2026-01-01&hasta=2026-01-02")
     assert res.status_code == 401
+
+
+# ---------- Mejora 3: fecha de emisión ----------
+def test_template_contiene_fecha_emision():
+    """El template renderiza la cadena 'Reporte generado el' con la fecha de emisión."""
+    from jinja2 import Template
+
+    from app.api.v1.endpoints.reportes import _TEMPLATE
+
+    html = Template(_TEMPLATE).render(
+        desde="2026-01-01", hasta="2026-01-31",
+        filas=[], medico_nombre=None,
+        fecha_emision="7 de mayo de 2026 a las 14:35",
+    )
+    assert "Reporte generado el" in html
+    assert "7 de mayo de 2026 a las 14:35" in html
+
+
+# ---------- Mejora 4: numeración secuencial ----------
+def test_template_numeracion_secuencial():
+    """La columna # usa loop.index (1,2,3…) en vez de los IDs internos."""
+    from jinja2 import Template
+
+    from app.api.v1.endpoints.reportes import _TEMPLATE
+
+    filas = [
+        {"id": 101, "fecha": "2026-01-05", "hora": "09:00", "paciente": "Ana García", "medico": "Dr. Test", "estado": "pendiente"},
+        {"id": 55,  "fecha": "2026-01-06", "hora": "10:00", "paciente": "Luis Mota",  "medico": "Dr. Test", "estado": "atendida"},
+        {"id": 999, "fecha": "2026-01-07", "hora": "11:00", "paciente": "Rosa López", "medico": "Dr. Test", "estado": "cancelada"},
+    ]
+    html = Template(_TEMPLATE).render(
+        desde="2026-01-05", hasta="2026-01-07",
+        filas=filas, medico_nombre=None,
+        fecha_emision="7 de mayo de 2026 a las 14:35",
+    )
+    assert "<td>1</td>" in html
+    assert "<td>2</td>" in html
+    assert "<td>3</td>" in html
+    assert "<td>101</td>" not in html
+    assert "<td>55</td>" not in html
+    assert "<td>999</td>" not in html

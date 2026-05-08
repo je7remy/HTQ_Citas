@@ -1,5 +1,6 @@
 """Generación de reportes en PDF con WeasyPrint."""
 from datetime import date as date_type
+from datetime import datetime
 from io import BytesIO
 
 from fastapi import APIRouter, Depends, Query
@@ -16,6 +17,12 @@ router = APIRouter(prefix="/reportes", tags=["reportes"])
 _staff = require_roles(RolUsuario.secretaria, RolUsuario.admin, RolUsuario.medico)
 
 
+_MESES_ES = {
+    1: "enero", 2: "febrero", 3: "marzo", 4: "abril",
+    5: "mayo", 6: "junio", 7: "julio", 8: "agosto",
+    9: "septiembre", 10: "octubre", 11: "noviembre", 12: "diciembre",
+}
+
 _TEMPLATE = """
 <!doctype html>
 <html lang="es">
@@ -27,6 +34,7 @@ _TEMPLATE = """
   body { font-family: 'Helvetica', sans-serif; color: #1f2937; font-size: 11pt; }
   h1 { color: #1e40af; margin-bottom: 0; font-size: 18pt; }
   .sub { color: #6b7280; margin-top: 4px; font-size: 10pt; }
+  .emision { color: #9ca3af; font-size: 9pt; margin-top: 2px; }
   table { width: 100%; border-collapse: collapse; margin-top: 18px; }
   th { background: #1e40af; color: white; text-align: left; padding: 8px; font-size: 10pt; }
   td { padding: 7px 8px; border-bottom: 1px solid #e5e7eb; font-size: 10pt; }
@@ -41,6 +49,7 @@ _TEMPLATE = """
 </head>
 <body>
   <h1>Reporte de Citas Médicas</h1>
+  <p class="emision">Reporte generado el {{ fecha_emision }}</p>
   <div class="sub">
     Hospital Regional Traumatológico y Quirúrgico Prof. Juan Bosch — SGCM<br/>
     Rango: {{ desde }} a {{ hasta }}
@@ -57,7 +66,7 @@ _TEMPLATE = """
     <tbody>
       {% for r in filas %}
       <tr>
-        <td>{{ r.id }}</td>
+        <td>{{ loop.index }}</td>
         <td>{{ r.fecha }}</td>
         <td>{{ r.hora }}</td>
         <td>{{ r.paciente }}</td>
@@ -111,9 +120,15 @@ def reporte_citas_pdf(
         m = session.get(Medico, id_medico)
         medico_nombre = m.nombre if m else None
 
+    now = datetime.now()
+    fecha_emision = (
+        f"{now.day} de {_MESES_ES[now.month]} de {now.year} a las {now.strftime('%H:%M')}"
+    )
+
     html_str = Template(_TEMPLATE).render(
         desde=desde.isoformat(), hasta=hasta.isoformat(),
         filas=filas, medico_nombre=medico_nombre,
+        fecha_emision=fecha_emision,
     )
     pdf_bytes = HTML(string=html_str).write_pdf()
 

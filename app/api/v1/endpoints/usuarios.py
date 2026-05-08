@@ -1,12 +1,14 @@
 """Gestión de usuarios — restringido a administrador."""
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from typing import Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
 from app.api.deps import require_roles
 from app.core.security import hash_password
 from app.db.session import get_session
-from app.models import AccionAuditoria, RolUsuario, Usuario
+from app.models import AccionAuditoria, Medico, RolUsuario, Usuario
 from app.schemas import UsuarioCreate, UsuarioRead, UsuarioUpdate
 from app.services.audit import registrar_auditoria
 
@@ -16,8 +18,19 @@ _admin_only = require_roles(RolUsuario.admin)
 
 
 @router.get("", response_model=list[UsuarioRead])
-def listar(session: Session = Depends(get_session), _: Usuario = Depends(_admin_only)):
-    return session.exec(select(Usuario).order_by(Usuario.id)).all()
+def listar(
+    rol: Optional[RolUsuario] = Query(default=None),
+    sin_perfil_medico: bool = Query(default=False),
+    session: Session = Depends(get_session),
+    _: Usuario = Depends(_admin_only),
+):
+    stmt = select(Usuario).order_by(Usuario.id)
+    if rol:
+        stmt = stmt.where(Usuario.rol == rol)
+    if sin_perfil_medico:
+        linked_subq = select(Medico.id_usuario).where(Medico.id_usuario != None)  # noqa: E711
+        stmt = stmt.where(Usuario.id.not_in(linked_subq))
+    return session.exec(stmt).all()
 
 
 @router.post("", response_model=UsuarioRead, status_code=status.HTTP_201_CREATED)

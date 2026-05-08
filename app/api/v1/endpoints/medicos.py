@@ -27,6 +27,21 @@ def crear(
     session: Session = Depends(get_session),
     actor: Usuario = Depends(_admin),
 ):
+    if payload.id_usuario is not None:
+        u = session.get(Usuario, payload.id_usuario)
+        if not u or u.rol != RolUsuario.medico:
+            raise HTTPException(
+                422,
+                "El usuario seleccionado no es válido o ya está vinculado a otro perfil de médico.",
+            )
+        existing = session.exec(
+            select(Medico).where(Medico.id_usuario == payload.id_usuario)
+        ).first()
+        if existing:
+            raise HTTPException(
+                422,
+                "El usuario seleccionado no es válido o ya está vinculado a otro perfil de médico.",
+            )
     m = Medico(**payload.model_dump())
     session.add(m)
     session.flush()

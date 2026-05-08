@@ -31,6 +31,17 @@
     <section data-role="admin" style="display:none" class="bg-white rounded-2xl shadow p-5 lg:col-span-1">
       <h2 class="text-lg font-semibold text-slate-800 mb-4">Nuevo médico</h2>
       <form id="medico-form" class="space-y-3">
+        <!-- Selector de usuario (se carga dinámicamente) -->
+        <div id="div-usuario-selector">
+          <label class="block text-sm text-slate-600">Vincular a usuario *</label>
+          <select id="id_usuario" required
+            class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2">
+          </select>
+        </div>
+        <div id="sin-usuarios-msg" class="hidden text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded p-3">
+          No hay usuarios con rol médico disponibles. Cree uno primero en la pantalla
+          <a href="/usuarios.html" class="underline font-semibold">Usuarios</a>.
+        </div>
         <div>
           <label class="block text-sm text-slate-600">Nombre *</label>
           <input id="nombre" required
@@ -47,7 +58,7 @@
             class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" />
         </div>
         <div id="medico-error" class="hidden text-sm text-red-700 bg-red-50 border border-red-200 rounded p-2"></div>
-        <button class="w-full bg-blue-700 hover:bg-blue-800 text-white font-semibold py-2 rounded-lg">
+        <button id="btn-crear-medico" class="w-full bg-blue-700 hover:bg-blue-800 text-white font-semibold py-2 rounded-lg">
           Crear médico
         </button>
       </form>
@@ -255,14 +266,48 @@
       }
     }
 
+    async function cargarUsuariosDisponibles() {
+      const sel = document.getElementById("id_usuario");
+      const divSel = document.getElementById("div-usuario-selector");
+      const sinMsg = document.getElementById("sin-usuarios-msg");
+      const btn = document.getElementById("btn-crear-medico");
+      try {
+        const usuarios = await SGCM.api("/usuarios?rol=medico&sin_perfil_medico=true");
+        sel.innerHTML = "";
+        if (usuarios.length === 0) {
+          divSel.classList.add("hidden");
+          sinMsg.classList.remove("hidden");
+          btn.disabled = true;
+          btn.classList.add("opacity-50", "cursor-not-allowed");
+          btn.classList.remove("hover:bg-blue-800");
+        } else {
+          divSel.classList.remove("hidden");
+          sinMsg.classList.add("hidden");
+          btn.disabled = false;
+          btn.classList.remove("opacity-50", "cursor-not-allowed");
+          btn.classList.add("hover:bg-blue-800");
+          for (const u of usuarios) {
+            const opt = document.createElement("option");
+            opt.value = u.id;
+            opt.textContent = `${u.nombre} (${u.email})`;
+            sel.appendChild(opt);
+          }
+        }
+      } catch (err) {
+        console.error("Error cargando usuarios disponibles:", err);
+      }
+    }
+
     document.getElementById("medico-form").addEventListener("submit", async (e) => {
       e.preventDefault();
       const errBox = document.getElementById("medico-error");
       errBox.classList.add("hidden");
+      const idUsuario = document.getElementById("id_usuario").value;
       try {
         await SGCM.api("/medicos", {
           method: "POST",
           body: JSON.stringify({
+            id_usuario: idUsuario ? parseInt(idUsuario) : null,
             nombre: document.getElementById("nombre").value,
             especialidad: document.getElementById("especialidad").value,
             telefono: SGCM.stripDigits(document.getElementById("telefono").value) || null,
@@ -270,6 +315,7 @@
         });
         e.target.reset();
         await cargarMedicos();
+        await cargarUsuariosDisponibles();
       } catch (err) {
         errBox.textContent = err.message;
         errBox.classList.remove("hidden");
@@ -337,6 +383,7 @@
     });
 
     cargarMedicos();
+    cargarUsuariosDisponibles();
   </script>
 </body>
 </html>

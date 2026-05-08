@@ -26,7 +26,7 @@ def seed() -> None:
             rol=RolUsuario.admin,
         )
         secretaria = Usuario(
-            nombre="Secretaria Consulta Externa",
+            nombre="Secretaria HTQPJB",
             email="secretaria@htqpjb.gob.do",
             password_hash=hash_password("Secret*2026"),
             rol=RolUsuario.secretaria,

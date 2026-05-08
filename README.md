@@ -1,196 +1,606 @@
 # SGCM — Sistema Web de Gestión de Citas Médicas
 
-Sistema web para automatizar la gestión de citas médicas del **Hospital Regional Traumatológico y Quirúrgico Prof. Juan Bosch (HTQPJB)**, La Vega, República Dominicana.
+  
 
-Trabajo de grado — Universidad Nacional Pedro Henríquez Ureña (UNPHU), Recinto La Vega.
+[![![CI](https://github.com/je7remy/HTQ_Citas/actions/workflows/ci.yml/badge.svg)](https://github.com/je7remy/HTQ_Citas/actions/workflows/ci.yml)
+![Python](https://img.shields.io/badge/python-3.11+-blue.svg)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.110+-009688.svg)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-336791.svg)
+![Docker](https://img.shields.io/badge/Docker-24+-2496ED.svg)
+![License](https://img.shields.io/badge/license-Académico-lightgrey.svg)
+
+  
+
+Plataforma web para automatizar y optimizar el proceso de gestión de citas médicas del **Hospital Regional Traumatológico y Quirúrgico Prof. Juan Bosch (HTQPJB)** en La Vega, República Dominicana.
+
+  
+
+> Trabajo de grado para optar por el título de Licenciatura en Informática — Universidad Nacional Pedro Henríquez Ureña (UNPHU), Recinto La Vega.
+
+  
+
+---
+
+  
+
+## Tabla de contenido
+
+  
+
+- [Sobre el proyecto](#sobre-el-proyecto)
+
+- [Características principales](#características-principales)
+
+- [Arquitectura](#arquitectura)
+
+- [Stack tecnológico](#stack-tecnológico)
+
+- [Inicio rápido](#inicio-rápido)
+
+- [Estructura del proyecto](#estructura-del-proyecto)
+
+- [Casos de uso](#casos-de-uso)
+
+- [Roles y permisos](#roles-y-permisos)
+
+- [Pruebas automatizadas](#pruebas-automatizadas)
+
+- [Integración continua](#integración-continua)
+
+- [Documentación](#documentación)
+
+- [Autores](#autores)
+
+  
+
+---
+
+  
+
+## Sobre el proyecto
+
+  
+
+El SGCM automatiza el proceso de gestión de citas que el HTQPJB realizaba previamente con registros físicos, libretas y comunicación verbal. La plataforma reemplaza esos soportes manuales por una solución digital centralizada que opera en la intranet del hospital.
+
+  
+
+**Lo que el sistema NO es:** una reingeniería del proceso institucional. La lógica operativa, los roles y las responsabilidades del personal se conservan. **Lo que el sistema SÍ es:** la automatización de los puntos del flujo donde los soportes manuales generaban duplicaciones, demoras y descoordinación.
+
+  
+
+---
+
+  
+
+## Características principales
+
+  
+
+- 🔐 **Autenticación JWT** con hashing bcrypt y expiración configurable.
+
+- 👥 **Control de acceso basado en roles (RBAC)** en dos capas: backend y frontend.
+
+- 📅 **Calendario interactivo** con FullCalendar.js (vista mensual por defecto).
+
+- 🚫 **Prevención física de duplicaciones** mediante índice único parcial en PostgreSQL.
+
+- 🩺 **Bloqueo temporal del registro de consulta:** el médico no puede registrar diagnósticos antes de la fecha de la cita.
+
+- 🔗 **Vinculación usuario↔médico** desde la UI del administrador.
+
+- 📄 **Reportes PDF** generados con WeasyPrint, con fecha de emisión y numeración secuencial.
+
+- 🔍 **Auditoría transaccional** de todas las operaciones críticas (Ley 172-13).
+
+- ✅ **Suite de ~50 pruebas automatizadas** con pytest.
+
+- 🔄 **CI/CD** con GitHub Actions ejecutando linter, tests y construcción de imagen Docker.
+
+- 🐳 **Despliegue 100% contenedorizado** con Docker Compose.
+
+- 🎨 **Máscaras visuales** en cédula y teléfono para mejor experiencia de usuario.
+
+  
+
+---
+
+  
+
+## Arquitectura
+
+  
+
+```
+
+┌─────────────────────────────────────────────────────────────┐
+
+│                    INTRANET DEL HOSPITAL                    │
+
+│                                                             │
+
+│   Navegador  ──HTTP──▶  ┌──────────┐                        │
+
+│                         │  NGINX   │  (proxy + estáticos)   │
+
+│                         │  :80     │                        │
+
+│                         └─────┬────┘                        │
+
+│                               │                             │
+
+│                       ┌───────┴────────┐                    │
+
+│                       ▼                ▼                    │
+
+│              ┌──────────────┐  ┌──────────────┐             │
+
+│              │   FastAPI    │  │  PostgreSQL  │             │
+
+│              │   :8000      │──│   :5432      │             │
+
+│              │  (backend)   │  │  (database)  │             │
+
+│              └──────────────┘  └──────────────┘             │
+
+│                                                             │
+
+│              Volumen pgdata (persistencia)                  │
+
+└─────────────────────────────────────────────────────────────┘
+
+```
+
+  
+
+---
+
+  
 
 ## Stack tecnológico
 
-| Capa | Tecnologías |
-|---|---|
-| **Backend** | Python 3.11 · FastAPI · SQLModel · Alembic |
-| **Base de datos** | PostgreSQL 15 |
-| **Auth** | JWT (python-jose) · bcrypt · RBAC |
-| **Frontend** | HTML · Vanilla JS · Tailwind CSS · FullCalendar.js |
-| **Reportes** | WeasyPrint (PDF) |
-| **Infraestructura** | Docker · Docker Compose · Nginx (reverse proxy) |
-| **Tests** | pytest (40+ casos, BD SQLite in-memory) |
-| **CI** | GitHub Actions |
+  
+
+### Backend
+
+- **Python 3.11+** — Lenguaje principal
+
+- **FastAPI** — Framework web asíncrono con OpenAPI automático
+
+- **SQLModel** — ORM combinado con validación Pydantic
+
+- **Alembic** — Migraciones versionadas del esquema
+
+- **python-jose** — Generación y validación de JWT
+
+- **passlib + bcrypt** — Hashing seguro de contraseñas
+
+- **WeasyPrint** — Generación de PDFs desde HTML/CSS
+
+- **pytest + httpx** — Pruebas automatizadas
+
+  
+
+### Base de datos
+
+- **PostgreSQL 15** — Con índices únicos parciales para prevenir duplicaciones
+
+  
+
+### Frontend
+
+- **HTML5 + JavaScript ES6** (vanilla, sin framework)
+
+- **Tailwind CSS** (vía CDN)
+
+- **FullCalendar.js** — Calendario interactivo
+
+  
+
+### Infraestructura
+
+- **Docker + Docker Compose** — Orquestación de contenedores
+
+- **Nginx** — Proxy inverso y servidor de archivos estáticos
+
+- **mkcert** — Certificado SSL para HTTPS en intranet
+
+- **GitHub Actions** — Integración continua
+
+  
+
+---
+
+  
+
+## Inicio rápido
+
+  
+
+### Requisitos previos
+
+- Docker Engine 24+ y Docker Compose v2
+
+- Git 2.30+
+
+  
+
+### Instalación en 4 pasos
+
+  
+
+```bash
+
+# 1. Clonar el repositorio
+
+git clone https://github.com/je7remy/HTQ_Citas.git sgcm
+
+cd sgcm
+
+  
+
+# 2. Configurar variables de entorno
+
+cp .env.example .env
+
+# Editar .env y configurar JWT_SECRET_KEY (mínimo 32 caracteres)
+
+  
+
+# 3. Arrancar el sistema
+
+docker compose up -d --build
+
+  
+
+# 4. Verificar
+
+docker compose ps
+
+```
+
+  
+
+Acceder a `http://localhost/` en el navegador.
+
+  
+
+### Credenciales de demostración
+
+  
+
+| Rol | Email | Contraseña |
+
+|---|---|---|
+
+| Administrador | `admin@htqpjb.gob.do` | `Admin*2026` |
+
+| Secretaria | `secretaria@htqpjb.gob.do` | `Secret*2026` |
+
+| Médico | `jperez@htqpjb.gob.do` | `Medico*2026` |
+
+  
+
+> ⚠️ Cambiar inmediatamente todas las contraseñas tras la primera puesta en marcha en producción.
+
+  
+
+---
+
+  
 
 ## Estructura del proyecto
 
+  
+
 ```
+
 sgcm/
-├── app/
-│   ├── api/
-│   │   ├── deps.py                  # get_current_user + RBAC
-│   │   └── v1/
-│   │       ├── router.py            # Agregador
-│   │       └── endpoints/
-│   │           ├── auth.py          # Login (CU-01) + /me
-│   │           ├── usuarios.py      # CRUD usuarios (admin)
-│   │           ├── pacientes.py     # CRUD pacientes (E-007)
-│   │           ├── medicos.py       # CRUD médicos + horarios
-│   │           ├── citas.py         # CRUD + feed FullCalendar
-│   │           ├── consultas.py     # Módulo médico
-│   │           ├── reportes.py      # PDF con WeasyPrint
-│   │           └── auditoria.py     # CU-15 consulta auditoría
-│   ├── core/                        # Config + JWT/bcrypt
-│   ├── db/session.py                # Engine SQLModel
-│   ├── models/                      # Tablas (Anexo D)
-│   ├── schemas/                     # DTOs Pydantic
-│   ├── services/                    # Lógica de negocio + auditoría
-│   └── main.py                      # FastAPI factory
-├── alembic/                         # Migraciones
+
+├── app/                          # Backend Python
+
+│   ├── api/v1/                   # Endpoints REST
+
+│   ├── core/                     # Configuración y seguridad (JWT, bcrypt)
+
+│   ├── db/                       # Sesión SQLAlchemy
+
+│   ├── models/                   # Modelos SQLModel (tablas)
+
+│   ├── services/                 # Lógica de negocio
+
+│   ├── templates/reportes/       # Templates HTML para PDFs
+
+│   └── main.py                   # Punto de entrada FastAPI
+
+├── alembic/                      # Migraciones de base de datos
+
 ├── frontend/
-│   ├── templates/
-│   │   ├── login.html
-│   │   ├── calendar.html            # FullCalendar.js
-│   │   ├── pacientes.html           # CRUD pacientes
-│   │   ├── medicos.html             # CRUD médicos + horarios
-│   │   └── auditoria.html           # CU-15 viewer (admin)
-│   └── static/js/app.js             # Cliente JWT
-├── nginx/default.conf               # Reverse proxy
-├── scripts/
-│   ├── init.sql                     # DDL Anexo D + índice parcial
-│   └── seed.py                      # Usuarios iniciales
-├── tests/                           # 40+ tests pytest
-├── .github/workflows/ci.yml         # CI
-├── Dockerfile
-├── docker-compose.yml
-├── requirements.txt
-└── pytest.ini
+
+│   ├── static/
+
+│   │   └── js/app.js             # Módulo JS común (SGCM)
+
+│   └── templates/                # Páginas HTML
+
+│       ├── login.html
+
+│       ├── calendar.html         # Calendario + modales de cita
+
+│       ├── pacientes.html
+
+│       ├── medicos.html          # Médicos + modal edición
+
+│       ├── agenda.html           # Agenda del rol médico
+
+│       ├── usuarios.html         # Gestión de usuarios (admin)
+
+│       └── auditoria.html        # Log de auditoría (admin)
+
+├── nginx/                        # Configuración Nginx
+
+├── scripts/seed.py               # Datos iniciales
+
+├── tests/                        # Suite pytest
+
+├── .github/workflows/ci.yml      # CI con GitHub Actions
+
+├── docker-compose.yml            # Orquestación
+
+├── Dockerfile                    # Imagen del backend
+
+├── requirements.txt              # Dependencias Python
+
+└── .env.example                  # Plantilla de variables
+
 ```
 
-## Arranque rápido
+  
+
+---
+
+  
+
+## Casos de uso
+
+  
+
+El sistema implementa los **15 casos de uso** definidos en el análisis:
+
+  
+
+| ID | Caso de uso | Roles |
+
+|---|---|---|
+
+| CU-01 | Iniciar sesión | Todos |
+
+| CU-02 | Cerrar sesión | Todos |
+
+| CU-03 | Registrar paciente | Secretaria, Admin |
+
+| CU-04 | Buscar paciente | Secretaria, Admin |
+
+| CU-05 | Editar paciente | Secretaria, Admin |
+
+| CU-06 | Agendar cita | Secretaria, Admin |
+
+| CU-07 | Reprogramar cita | Secretaria, Admin |
+
+| CU-08 | Cancelar cita | Secretaria, Admin |
+
+| CU-09 | Consultar citas | Todos |
+
+| CU-10 | Generar reporte PDF | Secretaria, Admin |
+
+| CU-11 | Ver agenda diaria | Médico |
+
+| CU-12 | Registrar consulta | Médico |
+
+| CU-13 | Gestionar usuarios | Admin |
+
+| CU-14 | Registrar médico | Admin |
+
+| CU-15 | Consultar auditoría | Admin |
+
+  
+
+---
+
+  
+
+## Roles y permisos
+
+  
+
+| Rol | Permisos |
+
+|---|---|
+
+| **Secretaria** | Pacientes (CRUD), Citas (CRUD), Reportes |
+
+| **Médico** | Solo agenda propia, registro de consultas (con bloqueo temporal) |
+
+| **Administrador** | Todo lo anterior + usuarios, médicos, horarios, auditoría |
+
+  
+
+El RBAC se aplica en **dos capas**: el backend valida cada petición HTTP independientemente del estado del frontend, garantizando seguridad real. El frontend adapta dinámicamente la UI con `data-role` para mejor experiencia.
+
+  
+
+---
+
+  
+
+## Pruebas automatizadas
+
+  
 
 ```bash
-git clone <repo>
-cd sgcm
-cp .env.example .env       # Cambia JWT_SECRET_KEY (mín. 32 chars)
-docker compose up --build
+
+# Ejecutar todos los tests dentro del contenedor
+
+docker exec sgcm_api pytest -v
+
+  
+
+# Con cobertura
+
+docker exec sgcm_api pytest --cov=app --cov-report=term-missing
+
 ```
 
-Servicios:
+  
 
-- **Frontend:**     http://localhost/
-- **API docs:**     http://localhost/api/v1/docs
-- **Health check:** http://localhost/health
-- **PostgreSQL:**   localhost:5432
+Los tests usan **SQLite en memoria** con `StaticPool` para aislamiento y velocidad. Cubren autenticación, RBAC, CRUDs, índice único parcial, validación de cédula dominicana, bloqueo temporal del registro de consulta, vinculación usuario↔médico, generación de reportes y auditoría transaccional.
 
-El contenedor `api` ejecuta `scripts/seed.py` automáticamente y crea:
+  
 
-| Rol | Email | Password |
-|---|---|---|
-| Admin | `admin@htqpjb.gob.do` | `Admin*2026` |
-| Secretaria | `secretaria@htqpjb.gob.do` | `Secret*2026` |
-| Médico | `jperez@htqpjb.gob.do` | `Medico*2026` |
+---
 
-Más un médico de prueba (Dr. Juan Pérez, Traumatología) con horario L–V 8:00–12:00.
+  
 
-## Casos de uso implementados
+## Integración continua
 
-| ID | Descripción | Endpoint |
-|---|---|---|
-| CU-01 | Login con JWT + auditoría | `POST /api/v1/auth/login` |
-| CU-02 | Gestión de usuarios (admin) | `*/api/v1/usuarios` |
-| CU-03 | Registro de pacientes | `POST /api/v1/pacientes` |
-| CU-04 | Búsqueda de pacientes | `GET /api/v1/pacientes?q=...` |
-| CU-05 | Crear cita (valida disponibilidad) | `POST /api/v1/citas` |
-| CU-06 | Visualización en calendario | `GET /api/v1/citas/calendar` |
-| CU-07 | Reprogramar cita (libera horario) | `PATCH /api/v1/citas/{id}` |
-| CU-08 | Cancelar cita (libera horario) | `DELETE /api/v1/citas/{id}` |
-| CU-09 | Consultar citas con filtros | `GET /api/v1/citas` |
-| CU-10 | Gestión de médicos | `*/api/v1/medicos` |
-| CU-11 | Gestión de horarios | `*/api/v1/medicos/{id}/horarios` |
-| CU-12 | Agenda diaria del médico | `GET /api/v1/consultas/agenda` |
-| CU-13 | Registrar observaciones | `POST /api/v1/consultas` |
-| CU-14 | Reportes PDF | `GET /api/v1/reportes/citas.pdf` |
-| CU-15 | Consulta de auditoría (admin) | `GET /api/v1/auditoria` |
+  
 
-## Códigos de error de negocio
+El workflow `.github/workflows/ci.yml` se ejecuta ante cada push y pull request:
 
-Coinciden con los de la tesis:
+  
 
-| Código | Significado | Causa |
-|---|---|---|
-| **E-005** | Horario ocupado | Slot ya asignado a una cita activa |
-| **E-006** | Fuera de horario | Hora fuera del `Horario` del médico para ese día |
-| **E-007** | Cédula duplicada | Violación de `UNIQUE` en `pacientes.cedula` |
+- **Job 1: Tests + Lint** — Instala dependencias, ejecuta `ruff` y la suite completa de `pytest`.
 
-## Decisión de diseño: índice único parcial
+- **Job 2: Docker build** — Construye la imagen Docker validando que el artefacto sea desplegable.
 
-La tesis exige dos cosas a la vez:
+  
 
-1. **Anexo D:** restricción `UNIQUE(id_medico, fecha, hora)` en `citas`.
-2. **CU-07/CU-08/P2.4:** al cancelar o reprogramar, el horario debe quedar **libre**.
+Las versiones de WeasyPrint y pydyf están **fijadas explícitamente** en `requirements.txt` para evitar fallos derivados de cambios incompatibles entre versiones menores.
 
-Estas dos cosas son incompatibles con un `UNIQUE` total convencional, porque las filas canceladas seguirían bloqueando el slot. La solución es un **índice único parcial** de PostgreSQL:
+  
 
-```sql
-CREATE UNIQUE INDEX uq_citas_medico_fecha_hora
-    ON citas (id_medico, fecha, hora)
-    WHERE estado <> 'cancelada';
+---
+
+  
+
+## Comandos útiles
+
+  
+
+| Acción | Comando |
+
+|---|---|
+
+| Arrancar el sistema | `docker compose up -d` |
+
+| Detener el sistema | `docker compose down` |
+
+| Ver logs en vivo | `docker compose logs -f` |
+
+| Reiniciar tras cambios HTML/JS | `docker compose restart nginx` |
+
+| Reiniciar tras cambios Python | `docker compose restart api` |
+
+| Reconstruir tras cambios mayores | `docker compose up -d --build` |
+
+| Ejecutar migraciones | `docker exec sgcm_api alembic upgrade head` |
+
+| Acceder a la base de datos | `docker exec -it sgcm_db psql -U sgcm_user -d sgcm_db` |
+
+| Ejecutar tests | `docker exec sgcm_api pytest -v` |
+
+  
+
+---
+
+  
+
+## Documentación
+
+  
+
+El proyecto incluye documentación complementaria:
+
+  
+
+- **Manual de Usuario** — Para el personal del hospital.
+
+- **Manual de Instalación** — Para el personal técnico.
+
+- **Guía de Configuración Personal** — Procedimiento detallado de despliegue local.
+
+- **Guía de Entendimiento del Proyecto** — Recorrido archivo por archivo del código.
+
+- **Guía de Estudio Profundo** — Testing, CI/CD, auditoría y Docker avanzado.
+
+- **Guía de Demostración para la Defensa** — Guion paso a paso de la presentación.
+
+- **Changelog v1.1** — Registro de cambios desde la entrega inicial.
+
+  
+
+---
+
+  
+
+## Cumplimiento legal
+
+  
+
+El sistema cumple con la **Ley 172-13 sobre Protección de Datos de Carácter Personal** de la República Dominicana mediante:
+
+  
+
+- Hashing bcrypt de contraseñas (nunca en texto plano).
+
+- Comunicación cifrada HTTPS vía Nginx con certificado SSL.
+
+- Tokens JWT firmados con clave secreta y expiración configurable.
+
+- Auditoría transaccional inmutable de todas las operaciones críticas.
+
+- Control de acceso basado en roles con principio de mínimo privilegio.
+
+  
+
+---
+
+  
+
+## Autores
+
+  
+
+**Cristopher Rafael Marcial** — Matrícula 21-1969  
+
+**Jeremy José de la Cruz Pérez** — Matrícula 21-0266
+
+  
+
+**Asesor:** Lic. David D'Oleo
+
+  
+
+Universidad Nacional Pedro Henríquez Ureña (UNPHU) — Recinto La Vega  
+
+Facultad de Ciencias y Tecnología · Escuela de Informática  
+
+La Vega, República Dominicana — 2026
+
+  
+
+---
+
+  
+
+## Versión
+
+  
+
+**SGCM v1.1** — Mayo 2026
+
+  
+
+Ver [Changelog](docs/7-_Changelog_SGCM_v1.1.docx) para el detalle de cambios.
+
 ```
-
-Esto preserva la integridad anti-duplicados para citas **activas**, permite reutilizar el slot tras cancelación, y conserva las filas canceladas para auditoría y trazabilidad.
-
-## Tests
-
-```bash
-# Localmente
-pip install -r requirements.txt
-JWT_SECRET_KEY=test-secret-key-with-at-least-32-characters \
-POSTGRES_USER=x POSTGRES_PASSWORD=x POSTGRES_DB=x \
-pytest -v
-
-# En Docker
-docker compose exec api pytest -v
-```
-
-Cobertura por archivo:
-
-| Archivo | Casos | Cubre |
-|---|---|---|
-| `test_auth.py` | 6 | Login, RBAC, endpoints protegidos |
-| `test_pacientes.py` | 7 | CRUD, E-007, validación de cédula |
-| `test_citas.py` | 7 | E-005, E-006, CU-07, CU-08, feed calendar |
-| `test_auditoria.py` | 15 | Logs CRUD/LOGIN, atomicidad, CU-15 |
-| `test_reportes.py` | 4 | PDF válido, filtros, RBAC |
-
-Los tests usan SQLite in-memory con `StaticPool` para velocidad y aislamiento. Las fechas se calculan dinámicamente para que no caduquen con el tiempo.
-
-## Migraciones (Alembic)
-
-```bash
-docker compose exec api alembic revision --autogenerate -m "mensaje"
-docker compose exec api alembic upgrade head
-```
-
-Para arranque limpio en desarrollo, `scripts/init.sql` se aplica automáticamente vía `docker-entrypoint-initdb.d` de PostgreSQL.
-
-## Seguridad
-
-- **JWT** con expiración configurable (default 60 min) y `JWT_SECRET_KEY` validada con `min_length=32` en el código.
-- **bcrypt** para hash de contraseñas vía `passlib`.
-- **RBAC** con factory `require_roles(...)` por endpoint.
-- **Auditoría transaccional**: cada acción crítica se registra en la misma transacción que la operación principal — si la operación falla, no queda log huérfano.
-- **Validación Pydantic** rechaza payloads malformados antes de tocar la BD.
-- **Headers de seguridad** en Nginx (`X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`).
-- **Cumplimiento de Ley 172-13** sobre protección de datos personales.
-
-## CI/CD
-
-GitHub Actions corre en cada push/PR:
-
-1. Levanta un servicio PostgreSQL 15.
-2. Instala dependencias de WeasyPrint.
-3. Ejecuta `ruff check`.
-4. Ejecuta `pytest`.
-5. Verifica que la imagen Docker compila.
-
-## Licencia
-
-Trabajo de grado académico — UNPHU 2026.
-Autores: Cristopher Rafael Marcial · Jeremy José de la Cruz Pérez.
-Asesor: Lic. David D'Oleo.

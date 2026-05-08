@@ -1,5 +1,6 @@
 """Módulo médico: agenda diaria + observaciones de consultas."""
 from datetime import date as date_type
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.exc import IntegrityError
@@ -59,6 +60,13 @@ def registrar_consulta(
     cita = session.get(Cita, payload.id_cita)
     if not cita:
         raise HTTPException(404, "Cita no encontrada.")
+
+    fecha_hora_cita = datetime.combine(cita.fecha, cita.hora)
+    if datetime.now() < fecha_hora_cita:
+        raise HTTPException(
+            400,
+            "No se puede registrar la consulta antes del horario programado de la cita.",
+        )
 
     # Si es médico (no admin), debe ser dueño de la cita
     if user.rol == RolUsuario.medico:
