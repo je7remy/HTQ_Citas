@@ -1,10 +1,11 @@
 """Tests de autenticación y RBAC."""
+from tests.conftest import TEST_PASSWORD
 
 
 def test_login_exitoso(client, seed_users):
     res = client.post(
         "/api/v1/auth/login",
-        data={"username": "admin@test.do", "password": "Admin*2026"},
+        data={"username": "admin@test.do", "password": TEST_PASSWORD},
     )
     assert res.status_code == 200
     body = res.json()

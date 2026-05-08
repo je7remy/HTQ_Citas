@@ -3,9 +3,17 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlmodel import Session, select
 
 from app.api.deps import require_roles
+from app.core.security import hash_password
 from app.db.session import get_session
 from app.models import AccionAuditoria, Horario, Medico, RolUsuario, Usuario
-from app.schemas import HorarioCreate, HorarioRead, MedicoCreate, MedicoRead, MedicoUpdate
+from app.schemas import (
+    HorarioCreate,
+    HorarioRead,
+    MedicoConUsuarioCreate,
+    MedicoCreate,
+    MedicoRead,
+    MedicoUpdate,
+)
 from app.services.audit import registrar_auditoria
 
 router = APIRouter(prefix="/medicos", tags=["medicos"])
@@ -52,6 +60,49 @@ def crear(
         tabla="medicos",
         id_registro=m.id,
         detalle=f"Alta medico {m.nombre} ({m.especialidad})",
+        ip_origen=request.client.host if request.client else None,
+    )
+    session.commit()
+    session.refresh(m)
+    return m
+
+
+@router.post("/con-usuario", response_model=MedicoRead, status_code=status.HTTP_201_CREATED)
+def crear_con_usuario(
+    payload: MedicoConUsuarioCreate,
+    request: Request,
+    session: Session = Depends(get_session),
+    actor: Usuario = Depends(_admin),
+):
+    existing = session.exec(select(Usuario).where(Usuario.email == payload.usuario.email)).first()
+    if existing:
+        raise HTTPException(409, "El email ya está registrado.")
+
+    u = Usuario(
+        nombre=payload.usuario.nombre,
+        email=payload.usuario.email,
+        password_hash=hash_password(payload.usuario.password),
+        rol=RolUsuario.medico,
+    )
+    session.add(u)
+    session.flush()
+
+    m = Medico(
+        id_usuario=u.id,
+        nombre=payload.medico.nombre,
+        especialidad=payload.medico.especialidad,
+        telefono=payload.medico.telefono,
+    )
+    session.add(m)
+    session.flush()
+
+    registrar_auditoria(
+        session,
+        id_usuario=actor.id,
+        accion=AccionAuditoria.CREATE,
+        tabla="medicos",
+        id_registro=m.id,
+        detalle=f"Alta medico con usuario {u.email} ({m.especialidad})",
         ip_origen=request.client.host if request.client else None,
     )
     session.commit()

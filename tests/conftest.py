@@ -18,6 +18,14 @@ from app.db.session import get_session
 from app.main import app
 from app.models import Horario, Medico, RolUsuario, Usuario
 
+# Contraseña centralizada para todos los tests. Nunca usar literales reales en los módulos de test.
+TEST_PASSWORD = "test-password-fixture-only"
+
+
+@pytest.fixture
+def test_password() -> str:
+    return TEST_PASSWORD
+
 
 @pytest.fixture(name="engine")
 def engine_fixture():
@@ -43,19 +51,19 @@ def seed_users_fixture(session: Session):
     admin = Usuario(
         nombre="Admin Test",
         email="admin@test.do",
-        password_hash=hash_password("Admin*2026"),
+        password_hash=hash_password(TEST_PASSWORD),
         rol=RolUsuario.admin,
     )
     sec = Usuario(
         nombre="Secre Test",
         email="sec@test.do",
-        password_hash=hash_password("Secret*2026"),
+        password_hash=hash_password(TEST_PASSWORD),
         rol=RolUsuario.secretaria,
     )
     med_user = Usuario(
         nombre="Dr. Test",
         email="med@test.do",
-        password_hash=hash_password("Medico*2026"),
+        password_hash=hash_password(TEST_PASSWORD),
         rol=RolUsuario.medico,
     )
     session.add_all([admin, sec, med_user])

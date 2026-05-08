@@ -29,21 +29,64 @@
   <main class="max-w-7xl mx-auto p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
     <!-- Columna izquierda: alta de médico (solo admin) -->
     <section data-role="admin" style="display:none" class="bg-white rounded-2xl shadow p-5 lg:col-span-1">
-      <h2 class="text-lg font-semibold text-slate-800 mb-4">Nuevo médico</h2>
+      <h2 class="text-lg font-semibold text-slate-800 mb-3">Nuevo médico</h2>
+
+      <!-- Selector de modo -->
+      <div class="flex gap-1 mb-4 bg-slate-100 rounded-lg p-1 text-sm">
+        <label id="tab-vincular"
+          class="flex-1 text-center py-1 rounded-md cursor-pointer font-medium transition-colors bg-white text-blue-700 shadow-sm">
+          <input type="radio" name="modo-creacion" value="vincular" checked class="sr-only">
+          Vincular existente
+        </label>
+        <label id="tab-nuevo"
+          class="flex-1 text-center py-1 rounded-md cursor-pointer font-medium transition-colors text-slate-500">
+          <input type="radio" name="modo-creacion" value="nuevo" class="sr-only">
+          Crear usuario nuevo
+        </label>
+      </div>
+
       <form id="medico-form" class="space-y-3">
-        <!-- Selector de usuario (se carga dinámicamente) -->
-        <div id="div-usuario-selector">
-          <label class="block text-sm text-slate-600">Vincular a usuario *</label>
-          <select id="id_usuario" required
-            class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2">
-          </select>
+
+        <!-- MODO A: vincular a usuario existente -->
+        <div id="seccion-vincular" class="space-y-3">
+          <div id="div-usuario-selector">
+            <label class="block text-sm text-slate-600">Vincular a usuario *</label>
+            <select id="id_usuario"
+              class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2">
+            </select>
+          </div>
+          <div id="sin-usuarios-msg" class="hidden text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded p-3">
+            No hay usuarios con rol médico disponibles. Cree uno primero en la pantalla
+            <a href="/usuarios.html" class="underline font-semibold">Usuarios</a>,
+            o use la pestaña "Crear usuario nuevo".
+          </div>
         </div>
-        <div id="sin-usuarios-msg" class="hidden text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded p-3">
-          No hay usuarios con rol médico disponibles. Cree uno primero en la pantalla
-          <a href="/usuarios.html" class="underline font-semibold">Usuarios</a>.
+
+        <!-- MODO B: crear usuario médico inline -->
+        <div id="seccion-nuevo" class="hidden space-y-3">
+          <div class="text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded p-2">
+            Se creará una cuenta con rol <strong>médico</strong> y se vinculará automáticamente al perfil.
+          </div>
+          <div>
+            <label class="block text-sm text-slate-600">Nombre del usuario *</label>
+            <input id="nuevo-nombre-usuario" placeholder="Nombre completo"
+              class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" />
+          </div>
+          <div>
+            <label class="block text-sm text-slate-600">Email *</label>
+            <input id="nuevo-email" type="email" placeholder="correo@ejemplo.do"
+              class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" />
+          </div>
+          <div>
+            <label class="block text-sm text-slate-600">Contraseña *</label>
+            <input id="nuevo-password" type="password" placeholder="Mínimo 8 caracteres"
+              class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" />
+          </div>
         </div>
+
+        <!-- Campos comunes del perfil médico -->
         <div>
-          <label class="block text-sm text-slate-600">Nombre *</label>
+          <label class="block text-sm text-slate-600">Nombre del médico *</label>
           <input id="nombre" required
             class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" />
         </div>
@@ -57,6 +100,7 @@
           <input id="telefono" placeholder="(000) 000-0000" maxlength="14"
             class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" />
         </div>
+
         <div id="medico-error" class="hidden text-sm text-red-700 bg-red-50 border border-red-200 rounded p-2"></div>
         <button id="btn-crear-medico" class="w-full bg-blue-700 hover:bg-blue-800 text-white font-semibold py-2 rounded-lg">
           Crear médico
@@ -266,11 +310,46 @@
       }
     }
 
+    // ── Tabs de modo de creación ──────────────────────────────────────────────
+    let modoCreacion = "vincular";
+
+    function activarTab(modo) {
+      modoCreacion = modo;
+      const tabVincular = document.getElementById("tab-vincular");
+      const tabNuevo = document.getElementById("tab-nuevo");
+      const secVincular = document.getElementById("seccion-vincular");
+      const secNuevo = document.getElementById("seccion-nuevo");
+      const btn = document.getElementById("btn-crear-medico");
+
+      if (modo === "vincular") {
+        tabVincular.className = "flex-1 text-center py-1 rounded-md cursor-pointer font-medium transition-colors bg-white text-blue-700 shadow-sm";
+        tabNuevo.className    = "flex-1 text-center py-1 rounded-md cursor-pointer font-medium transition-colors text-slate-500";
+        secVincular.classList.remove("hidden");
+        secNuevo.classList.add("hidden");
+        cargarUsuariosDisponibles();
+      } else {
+        tabNuevo.className    = "flex-1 text-center py-1 rounded-md cursor-pointer font-medium transition-colors bg-white text-blue-700 shadow-sm";
+        tabVincular.className = "flex-1 text-center py-1 rounded-md cursor-pointer font-medium transition-colors text-slate-500";
+        secNuevo.classList.remove("hidden");
+        secVincular.classList.add("hidden");
+        btn.disabled = false;
+        btn.classList.remove("opacity-50", "cursor-not-allowed");
+        btn.classList.add("hover:bg-blue-800");
+      }
+    }
+
+    document.querySelectorAll("input[name='modo-creacion']").forEach((radio) => {
+      radio.addEventListener("change", () => activarTab(radio.value));
+    });
+    document.getElementById("tab-vincular").addEventListener("click", () => activarTab("vincular"));
+    document.getElementById("tab-nuevo").addEventListener("click", () => activarTab("nuevo"));
+
     async function cargarUsuariosDisponibles() {
       const sel = document.getElementById("id_usuario");
       const divSel = document.getElementById("div-usuario-selector");
       const sinMsg = document.getElementById("sin-usuarios-msg");
       const btn = document.getElementById("btn-crear-medico");
+      if (modoCreacion !== "vincular") return;
       try {
         const usuarios = await SGCM.api("/usuarios?rol=medico&sin_perfil_medico=true");
         sel.innerHTML = "";
@@ -302,18 +381,42 @@
       e.preventDefault();
       const errBox = document.getElementById("medico-error");
       errBox.classList.add("hidden");
-      const idUsuario = document.getElementById("id_usuario").value;
+
+      const nombre       = document.getElementById("nombre").value.trim();
+      const especialidad = document.getElementById("especialidad").value.trim();
+      const telefono     = SGCM.stripDigits(document.getElementById("telefono").value) || null;
+
       try {
-        await SGCM.api("/medicos", {
-          method: "POST",
-          body: JSON.stringify({
-            id_usuario: idUsuario ? parseInt(idUsuario) : null,
-            nombre: document.getElementById("nombre").value,
-            especialidad: document.getElementById("especialidad").value,
-            telefono: SGCM.stripDigits(document.getElementById("telefono").value) || null,
-          }),
-        });
+        if (modoCreacion === "vincular") {
+          const idUsuario = document.getElementById("id_usuario").value;
+          await SGCM.api("/medicos", {
+            method: "POST",
+            body: JSON.stringify({
+              id_usuario: idUsuario ? parseInt(idUsuario) : null,
+              nombre,
+              especialidad,
+              telefono,
+            }),
+          });
+        } else {
+          const nombreUsuario = document.getElementById("nuevo-nombre-usuario").value.trim();
+          const email         = document.getElementById("nuevo-email").value.trim();
+          const password      = document.getElementById("nuevo-password").value;
+          if (!nombreUsuario || !email || !password) {
+            errBox.textContent = "Nombre, email y contraseña del usuario son obligatorios.";
+            errBox.classList.remove("hidden");
+            return;
+          }
+          await SGCM.api("/medicos/con-usuario", {
+            method: "POST",
+            body: JSON.stringify({
+              usuario: { nombre: nombreUsuario, email, password },
+              medico:  { nombre, especialidad, telefono },
+            }),
+          });
+        }
         e.target.reset();
+        activarTab("vincular");
         await cargarMedicos();
         await cargarUsuariosDisponibles();
       } catch (err) {

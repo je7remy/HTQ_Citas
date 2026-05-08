@@ -177,6 +177,24 @@ class ConsultaRead(BaseModel):
     fecha_registro: datetime
 
 
+# ============ Médico con Usuario (endpoint combinado) ============
+class UsuarioMedicoPayload(BaseModel):
+    nombre: str = Field(min_length=2, max_length=100)
+    email: EmailStr
+    password: str = Field(min_length=8, max_length=128)
+
+
+class MedicoSinUsuarioPayload(BaseModel):
+    nombre: str = Field(min_length=2, max_length=100)
+    especialidad: str = Field(min_length=2, max_length=50)
+    telefono: Optional[str] = Field(default=None, max_length=15)
+
+
+class MedicoConUsuarioCreate(BaseModel):
+    usuario: UsuarioMedicoPayload
+    medico: MedicoSinUsuarioPayload
+
+
 # ============ Auditoría ============
 class AuditoriaRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)

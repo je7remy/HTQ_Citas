@@ -8,6 +8,7 @@ from datetime import date, timedelta
 from sqlmodel import Session, select
 
 from app.models import AccionAuditoria, Auditoria
+from tests.conftest import TEST_PASSWORD
 
 
 def _proximo_lunes() -> date:
@@ -46,7 +47,7 @@ def _logs(session: Session, tabla: str | None = None, accion: AccionAuditoria | 
 def test_login_genera_auditoria(client, session, seed_users):
     res = client.post(
         "/api/v1/auth/login",
-        data={"username": "admin@test.do", "password": "Admin*2026"},
+        data={"username": "admin@test.do", "password": TEST_PASSWORD},
     )
     assert res.status_code == 200
 
