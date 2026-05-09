@@ -4,200 +4,198 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>SGCM — Calendario de Citas</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
   <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.css" rel="stylesheet" />
   <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/locales/es.global.min.js"></script>
+  <link rel="stylesheet" href="/static/css/sgcm.css" />
 </head>
-<body class="bg-slate-100 min-h-screen">
-  <header class="bg-blue-800 text-white shadow">
-    <div class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+<body>
+  <main id="page-main">
+    <div class="page-header">
       <div>
-        <h1 class="text-xl font-bold">SGCM — Calendario de Citas</h1>
-        <p class="text-xs text-blue-200">HTQPJB · La Vega</p>
+        <h1 class="page-header__title">Calendario de Citas</h1>
+        <p class="page-header__sub">Vista mensual, semanal y diaria del agendamiento del hospital.</p>
       </div>
-      <nav class="flex items-center gap-3 text-sm">
-        <a href="/calendar.html" class="font-semibold underline">Calendario</a>
-        <a href="/pacientes.html" class="hover:underline">Pacientes</a>
-        <a href="/medicos.html" class="hover:underline">Médicos</a>
-        <span data-role="medico" style="display:none"><a href="/agenda.html" class="hover:underline">Mi Agenda</a></span>
-        <span data-role="admin" style="display:none"><a href="/usuarios.html" class="hover:underline">Usuarios</a></span>
-        <span data-role="admin" style="display:none"><a href="/auditoria.html" class="hover:underline">Auditoría</a></span>
-        <span id="user-info" class="ml-3 text-blue-200"></span>
-        <button id="logout" class="bg-blue-900 hover:bg-blue-950 px-3 py-1 rounded">Salir</button>
-      </nav>
+      <div class="page-header__actions">
+        <button data-role="staff" style="display:none" id="btn-reporte" class="btn btn-ghost">
+          <i data-lucide="file-down"></i>
+          <span>Reporte PDF</span>
+        </button>
+        <button data-role="staff" style="display:none" id="btn-nueva-cita" class="btn btn-primary">
+          <i data-lucide="plus"></i>
+          <span>Nueva cita</span>
+        </button>
+      </div>
     </div>
-  </header>
 
-  <main class="max-w-7xl mx-auto p-6">
-    <div class="bg-white rounded-2xl shadow p-4">
-      <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
-        <div class="flex gap-4 text-sm">
-          <span class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-blue-600"></span>Pendiente</span>
-          <span class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-green-600"></span>Atendida</span>
-          <span class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-gray-400"></span>Cancelada</span>
-        </div>
-        <div class="flex gap-2">
-          <button data-role="staff" style="display:none" id="btn-reporte"
-            class="bg-slate-200 hover:bg-slate-300 text-slate-800 text-sm font-semibold px-4 py-2 rounded-lg">
-            Reporte PDF
-          </button>
-          <button data-role="staff" style="display:none" id="btn-nueva-cita"
-            class="bg-blue-700 hover:bg-blue-800 text-white text-sm font-semibold px-4 py-2 rounded-lg">
-            + Nueva Cita
-          </button>
+    <section class="card">
+      <div class="card__header">
+        <div class="row" style="align-items:center;">
+          <span class="badge badge--blue"><span class="badge-dot badge-dot--blue"></span> Pendiente</span>
+          <span class="badge badge--green"><span class="badge-dot badge-dot--green"></span> Atendida</span>
+          <span class="badge badge--gray"><span class="badge-dot badge-dot--gray"></span> Cancelada</span>
         </div>
       </div>
-      <div id="calendar"></div>
-    </div>
+      <div class="card__body">
+        <div id="calendar"></div>
+      </div>
+    </section>
   </main>
 
   <!-- ══════════════ MODAL: NUEVA CITA ══════════════ -->
-  <div id="modal-nueva-cita" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-    <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg">
-      <div class="flex items-center justify-between px-6 py-4 border-b border-slate-200">
-        <h2 class="text-lg font-semibold text-slate-800">Nueva Cita</h2>
-        <button id="nc-cerrar" class="text-slate-400 hover:text-slate-600 text-xl font-bold">&times;</button>
+  <div id="modal-nueva-cita" class="modal-backdrop is-hidden">
+    <div class="modal modal--lg">
+      <div class="modal__header">
+        <h2 class="modal__title">Nueva cita</h2>
+        <button class="modal__close" id="nc-cerrar" aria-label="Cerrar"><i data-lucide="x"></i></button>
       </div>
-      <form id="form-nueva-cita" class="p-6 space-y-4">
-        <!-- Búsqueda de paciente -->
-        <div class="relative">
-          <label class="block text-sm text-slate-600 mb-1">Paciente *</label>
-          <input id="nc-busqueda" autocomplete="off" placeholder="Buscar por cédula o nombre…"
-            class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+      <form id="form-nueva-cita" class="modal__body stack">
+        <div class="field" style="position:relative;">
+          <label class="field__label">Paciente *</label>
+          <div class="input-group">
+            <i data-lucide="search" class="input-group__icon"></i>
+            <input id="nc-busqueda" autocomplete="off" placeholder="Buscar por cédula o nombre…" class="input" />
+          </div>
           <input type="hidden" id="nc-paciente-id" />
-          <div id="nc-resultados"
-            class="absolute z-10 w-full bg-white border border-slate-200 rounded-lg shadow mt-1 divide-y divide-slate-100 max-h-48 overflow-y-auto"></div>
+          <div id="nc-resultados" class="card" style="position:absolute; top:100%; left:0; right:0; margin-top:4px; max-height:200px; overflow-y:auto; z-index:10;"></div>
         </div>
 
-        <!-- Médico -->
-        <div>
-          <label class="block text-sm text-slate-600 mb-1">Médico *</label>
-          <select id="nc-medico" required class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+        <div class="field">
+          <label class="field__label">Médico *</label>
+          <select id="nc-medico" required class="select">
             <option value="">Seleccione un médico…</option>
           </select>
         </div>
 
-        <!-- Fecha + Hora -->
-        <div class="grid grid-cols-2 gap-3">
-          <div>
-            <label class="block text-sm text-slate-600 mb-1">Fecha *</label>
-            <input type="date" id="nc-fecha" required
-              class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+        <div class="grid-2">
+          <div class="field">
+            <label class="field__label">Fecha *</label>
+            <input type="date" id="nc-fecha" required class="input" />
           </div>
-          <div>
-            <label class="block text-sm text-slate-600 mb-1">Hora *</label>
-            <input type="time" id="nc-hora" required
-              class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+          <div class="field">
+            <label class="field__label">Hora *</label>
+            <input type="time" id="nc-hora" required class="input" />
           </div>
         </div>
 
-        <!-- Motivo -->
-        <div>
-          <label class="block text-sm text-slate-600 mb-1">Motivo</label>
-          <input id="nc-motivo" placeholder="Opcional"
-            class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+        <div class="field">
+          <label class="field__label">Motivo</label>
+          <input id="nc-motivo" placeholder="Opcional" class="input" />
         </div>
 
-        <div id="nc-error" class="hidden text-sm text-red-700 bg-red-50 border border-red-200 rounded p-2"></div>
-
-        <div class="flex gap-2 pt-1">
-          <button type="submit"
-            class="flex-1 bg-blue-700 hover:bg-blue-800 text-white font-semibold py-2 rounded-lg">
-            Guardar cita
-          </button>
-          <button type="button" id="nc-cancelar"
-            class="bg-slate-200 hover:bg-slate-300 text-slate-800 px-4 py-2 rounded-lg">
-            Cancelar
-          </button>
+        <div id="nc-error" class="alert alert--danger is-hidden">
+          <i data-lucide="alert-circle"></i>
+          <span></span>
         </div>
       </form>
+      <div class="modal__footer">
+        <button type="button" id="nc-cancelar" class="btn btn-ghost">Cancelar</button>
+        <button type="submit" form="form-nueva-cita" class="btn btn-primary">
+          <i data-lucide="check"></i>
+          <span>Guardar cita</span>
+        </button>
+      </div>
     </div>
   </div>
 
-  <!-- ══════════════ MODAL: DETALLE / ACCIONES CITA ══════════════ -->
-  <div id="modal-detalle-cita" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-    <div class="bg-white rounded-2xl shadow-xl w-full max-w-md">
-      <div class="flex items-center justify-between px-6 py-4 border-b border-slate-200">
-        <h2 class="text-lg font-semibold text-slate-800">Detalle de cita</h2>
-        <button id="det-cerrar" class="text-slate-400 hover:text-slate-600 text-xl font-bold">&times;</button>
+  <!-- ══════════════ MODAL: DETALLE CITA ══════════════ -->
+  <div id="modal-detalle-cita" class="modal-backdrop is-hidden">
+    <div class="modal">
+      <div class="modal__header">
+        <h2 class="modal__title">Detalle de cita</h2>
+        <button class="modal__close" id="det-cerrar" aria-label="Cerrar"><i data-lucide="x"></i></button>
       </div>
-      <div class="p-6 space-y-3 text-sm">
-        <p class="font-medium text-slate-800" id="det-titulo"></p>
-        <div class="flex gap-4 text-slate-600">
-          <span>Fecha: <strong id="det-fecha"></strong></span>
-          <span>Hora: <strong id="det-hora"></strong></span>
+      <div class="modal__body stack">
+        <div>
+          <div style="font-size:16px; font-weight:600; color:var(--color-text); margin-bottom:8px;" id="det-titulo"></div>
+          <div class="row row--sm">
+            <span class="badge badge--gray"><i data-lucide="calendar" style="width:12px;height:12px;"></i><span id="det-fecha"></span></span>
+            <span class="badge badge--gray"><i data-lucide="clock" style="width:12px;height:12px;"></i><span id="det-hora"></span></span>
+            <span id="det-estado" class="badge badge--blue"></span>
+          </div>
         </div>
-        <div>Estado: <span id="det-estado" class="px-2 py-0.5 rounded text-xs font-semibold"></span></div>
-        <div class="text-slate-600">Motivo: <span id="det-motivo"></span></div>
+        <div>
+          <div class="field__label" style="margin-bottom:4px;">Motivo</div>
+          <div id="det-motivo" class="text-muted" style="font-size:13.5px;">—</div>
+        </div>
 
-        <div id="det-acciones" class="pt-2 space-y-3">
-          <div class="flex gap-2">
-            <button id="btn-cancelar-cita"
-              class="flex-1 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold py-2 rounded-lg">
-              Cancelar cita
+        <div id="det-acciones" class="stack">
+          <div class="row">
+            <button id="btn-cancelar-cita" class="btn btn-danger" style="flex:1;">
+              <i data-lucide="x-circle"></i>
+              <span>Cancelar cita</span>
             </button>
-            <button id="btn-reprogramar"
-              class="flex-1 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold py-2 rounded-lg">
-              Reprogramar
+            <button id="btn-reprogramar" class="btn btn-warning" style="flex:1;">
+              <i data-lucide="calendar-clock"></i>
+              <span>Reprogramar</span>
             </button>
           </div>
 
-          <!-- Subform reprogramar (toggle) -->
-          <form id="form-reprogramar" class="hidden border border-slate-200 rounded-lg p-3 space-y-2 bg-slate-50">
-            <p class="text-xs text-slate-500 font-semibold">Nueva fecha y hora</p>
-            <div class="grid grid-cols-2 gap-2">
-              <div>
-                <label class="text-xs text-slate-600">Fecha</label>
-                <input type="date" id="rep-fecha" required
-                  class="w-full mt-1 rounded border border-slate-300 px-2 py-1 text-sm" />
+          <form id="form-reprogramar" class="is-hidden card card--padded" style="background:#FAFBFC;">
+            <div class="field__label" style="margin-bottom:8px;">Nueva fecha y hora</div>
+            <div class="grid-2" style="margin-bottom:10px;">
+              <div class="field">
+                <label class="field__label">Fecha</label>
+                <input type="date" id="rep-fecha" required class="input" />
               </div>
-              <div>
-                <label class="text-xs text-slate-600">Hora</label>
-                <input type="time" id="rep-hora" required
-                  class="w-full mt-1 rounded border border-slate-300 px-2 py-1 text-sm" />
+              <div class="field">
+                <label class="field__label">Hora</label>
+                <input type="time" id="rep-hora" required class="input" />
               </div>
             </div>
-            <button type="submit"
-              class="w-full bg-blue-700 hover:bg-blue-800 text-white text-sm font-semibold py-1.5 rounded-lg">
-              Confirmar reprogramación
+            <button type="submit" class="btn btn-primary" style="width:100%;">
+              <i data-lucide="check"></i>
+              <span>Confirmar reprogramación</span>
             </button>
           </form>
         </div>
 
-        <div id="det-error" class="hidden text-sm text-red-700 bg-red-50 border border-red-200 rounded p-2"></div>
+        <div id="det-error" class="alert alert--danger is-hidden">
+          <i data-lucide="alert-circle"></i>
+          <span></span>
+        </div>
       </div>
     </div>
   </div>
 
   <!-- ══════════════ MODAL: REPORTE PDF ══════════════ -->
-  <div id="modal-reporte" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-    <div class="bg-white rounded-2xl shadow-xl w-full max-w-sm">
-      <div class="flex items-center justify-between px-6 py-4 border-b border-slate-200">
-        <h2 class="text-lg font-semibold text-slate-800">Reporte PDF de Citas</h2>
-        <button id="rep-cerrar" class="text-slate-400 hover:text-slate-600 text-xl font-bold">&times;</button>
+  <div id="modal-reporte" class="modal-backdrop is-hidden">
+    <div class="modal modal--sm">
+      <div class="modal__header">
+        <h2 class="modal__title">Reporte PDF de citas</h2>
+        <button class="modal__close" id="rep-cerrar" aria-label="Cerrar"><i data-lucide="x"></i></button>
       </div>
-      <div class="p-6 space-y-4">
-        <div class="grid grid-cols-2 gap-3">
-          <div>
-            <label class="block text-sm text-slate-600 mb-1">Desde *</label>
-            <input type="date" id="rep-desde" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+      <div class="modal__body stack">
+        <div class="grid-2">
+          <div class="field">
+            <label class="field__label">Desde *</label>
+            <input type="date" id="rep-desde" class="input" />
           </div>
-          <div>
-            <label class="block text-sm text-slate-600 mb-1">Hasta *</label>
-            <input type="date" id="rep-hasta" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+          <div class="field">
+            <label class="field__label">Hasta *</label>
+            <input type="date" id="rep-hasta" class="input" />
           </div>
         </div>
-        <div>
-          <label class="block text-sm text-slate-600 mb-1">Médico (opcional)</label>
-          <select id="rep-medico-sel" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+        <div class="field">
+          <label class="field__label">Médico (opcional)</label>
+          <select id="rep-medico-sel" class="select">
             <option value="">Todos los médicos</option>
           </select>
         </div>
-        <div id="rep-error" class="hidden text-sm text-red-700 bg-red-50 border border-red-200 rounded p-2"></div>
-        <button id="btn-descargar-reporte"
-          class="w-full bg-blue-700 hover:bg-blue-800 text-white font-semibold py-2 rounded-lg text-sm">
-          Descargar PDF
+        <div id="rep-error" class="alert alert--danger is-hidden">
+          <i data-lucide="alert-circle"></i>
+          <span></span>
+        </div>
+      </div>
+      <div class="modal__footer">
+        <button id="btn-descargar-reporte" class="btn btn-primary" style="width:100%;">
+          <i data-lucide="download"></i>
+          <span>Descargar PDF</span>
         </button>
       </div>
     </div>
@@ -205,29 +203,26 @@
 
   <script src="/static/js/app.js"></script>
   <script>
-    SGCM.requireAuth();
-
     let currentUserRol = null;
     let medicosList = [];
     let currentCitaId = null;
     let calendar;
 
+    function setAlert(box, msg) {
+      box.querySelector("span").textContent = msg;
+      box.classList.remove("is-hidden");
+      lucide.createIcons();
+    }
+
     (async () => {
-      const me = await SGCM.me();
-      document.getElementById("user-info").textContent = `${me.nombre} (${me.rol})`;
-      currentUserRol = me.rol;
-      SGCM.applyNavPermissions(me.rol);
+      const me = await SGCM.mountShell({ active: 'calendario', pageTitle: 'Calendario de Citas' });
+      currentUserRol = me?.rol;
       medicosList = await SGCM.api("/medicos");
       poblarSelectores();
       initCalendar();
+      lucide.createIcons();
     })();
 
-    document.getElementById("logout").addEventListener("click", () => {
-      SGCM.logout();
-      window.location.href = "/login.html";
-    });
-
-    // ── Selectores de médico ──
     function poblarSelectores() {
       const selCita = document.getElementById("nc-medico");
       const selReporte = document.getElementById("rep-medico-sel");
@@ -238,63 +233,50 @@
       });
     }
 
-    // ── Calendario ──
     function initCalendar() {
       const calendarEl = document.getElementById("calendar");
       calendar = new FullCalendar.Calendar(calendarEl, {
         locale: "es",
         initialView: "dayGridMonth",
-        headerToolbar: {
-          left: "prev,next today",
-          center: "title",
-          right: "dayGridMonth,timeGridWeek,timeGridDay",
-        },
+        headerToolbar: { left: "prev,next today", center: "title", right: "dayGridMonth,timeGridWeek,timeGridDay" },
         slotMinTime: "07:00:00",
         slotMaxTime: "19:00:00",
         allDaySlot: false,
         height: "auto",
         events: async (info, success, failure) => {
           try {
-            const data = await SGCM.api(
-              `/citas/calendar?start=${info.startStr.slice(0, 10)}&end=${info.endStr.slice(0, 10)}`
-            );
+            const data = await SGCM.api(`/citas/calendar?start=${info.startStr.slice(0,10)}&end=${info.endStr.slice(0,10)}`);
             success(data);
-          } catch (e) {
-            failure(e);
-          }
+          } catch (e) { failure(e); }
         },
         dateClick: (info) => {
           if (currentUserRol !== "admin" && currentUserRol !== "secretaria") return;
           document.getElementById("nc-fecha").value = info.dateStr;
           abrirModalNuevaCita();
         },
-        eventClick: (info) => {
-          abrirModalDetalle(info.event);
-        },
+        eventClick: (info) => abrirModalDetalle(info.event),
       });
       calendar.render();
     }
 
-    // ══════════════ MODAL NUEVA CITA ══════════════
+    // ═══ Nueva cita
     document.getElementById("btn-nueva-cita").addEventListener("click", abrirModalNuevaCita);
     document.getElementById("nc-cerrar").addEventListener("click", cerrarModalNuevaCita);
     document.getElementById("nc-cancelar").addEventListener("click", cerrarModalNuevaCita);
 
     function abrirModalNuevaCita() {
-      document.getElementById("nc-error").classList.add("hidden");
+      document.getElementById("nc-error").classList.add("is-hidden");
       document.getElementById("nc-busqueda").value = "";
       document.getElementById("nc-resultados").innerHTML = "";
       document.getElementById("nc-paciente-id").value = "";
       document.getElementById("nc-hora").value = "";
       document.getElementById("nc-motivo").value = "";
-      document.getElementById("modal-nueva-cita").classList.remove("hidden");
+      document.getElementById("modal-nueva-cita").classList.remove("is-hidden");
     }
-
     function cerrarModalNuevaCita() {
-      document.getElementById("modal-nueva-cita").classList.add("hidden");
+      document.getElementById("modal-nueva-cita").classList.add("is-hidden");
     }
 
-    // Autocomplete paciente
     let busquedaTimer;
     document.getElementById("nc-busqueda").addEventListener("input", (e) => {
       document.getElementById("nc-paciente-id").value = "";
@@ -307,13 +289,15 @@
           const data = await SGCM.api(`/pacientes?q=${encodeURIComponent(q)}`);
           div.innerHTML = "";
           if (data.length === 0) {
-            div.innerHTML = `<div class="px-3 py-2 text-sm text-slate-400">Sin resultados</div>`;
+            div.innerHTML = `<div class="text-soft" style="padding:10px 14px; font-size:13px;">Sin resultados</div>`;
             return;
           }
           data.slice(0, 6).forEach((p) => {
             const item = document.createElement("div");
-            item.className = "px-3 py-2 hover:bg-blue-50 cursor-pointer text-sm";
+            item.style.cssText = "padding:9px 14px; font-size:13.5px; cursor:pointer; border-bottom:1px solid var(--color-border-soft);";
             item.textContent = `${SGCM.formatCedula(p.cedula)} — ${p.nombre} ${p.apellidos}`;
+            item.addEventListener("mouseover", () => item.style.background = "var(--color-primary-light)");
+            item.addEventListener("mouseout", () => item.style.background = "");
             item.addEventListener("click", () => {
               document.getElementById("nc-paciente-id").value = p.id;
               document.getElementById("nc-busqueda").value = `${SGCM.formatCedula(p.cedula)} — ${p.nombre} ${p.apellidos}`;
@@ -328,13 +312,9 @@
     document.getElementById("form-nueva-cita").addEventListener("submit", async (e) => {
       e.preventDefault();
       const errBox = document.getElementById("nc-error");
-      errBox.classList.add("hidden");
+      errBox.classList.add("is-hidden");
       const pacienteId = document.getElementById("nc-paciente-id").value;
-      if (!pacienteId) {
-        errBox.textContent = "Seleccione un paciente de la lista de resultados.";
-        errBox.classList.remove("hidden");
-        return;
-      }
+      if (!pacienteId) { setAlert(errBox, "Seleccione un paciente de la lista de resultados."); return; }
       try {
         await SGCM.api("/citas", {
           method: "POST",
@@ -348,13 +328,10 @@
         });
         cerrarModalNuevaCita();
         calendar.refetchEvents();
-      } catch (err) {
-        errBox.textContent = err.message;
-        errBox.classList.remove("hidden");
-      }
+      } catch (err) { setAlert(errBox, err.message); }
     });
 
-    // ══════════════ MODAL DETALLE CITA ══════════════
+    // ═══ Detalle cita
     document.getElementById("det-cerrar").addEventListener("click", cerrarModalDetalle);
 
     function abrirModalDetalle(event) {
@@ -364,58 +341,55 @@
       const isPendiente = p.estado === "pendiente";
 
       document.getElementById("det-titulo").textContent = event.title;
-
-      const startStr = event.startStr; // "2026-05-07T09:00:00"
+      const startStr = event.startStr;
       const fecha = startStr.slice(0, 10);
       const hora = startStr.slice(11, 16);
       document.getElementById("det-fecha").textContent = new Date(fecha + "T12:00:00").toLocaleDateString("es-DO");
-      document.getElementById("det-hora").textContent = hora;
+      document.getElementById("det-hora").textContent = SGCM.formatHora12(hora);
 
       const estadoEl = document.getElementById("det-estado");
       estadoEl.textContent = p.estado;
-      estadoEl.className = "px-2 py-0.5 rounded text-xs font-semibold " + (
-        p.estado === "pendiente" ? "bg-blue-100 text-blue-800" :
-        p.estado === "atendida"  ? "bg-green-100 text-green-800" :
-                                   "bg-gray-100 text-gray-600"
+      estadoEl.className = "badge " + (
+        p.estado === "pendiente" ? "badge--blue" :
+        p.estado === "atendida"  ? "badge--green" :
+                                   "badge--gray"
       );
 
       document.getElementById("det-motivo").textContent = p.motivo || "—";
       document.getElementById("rep-fecha").value = fecha;
       document.getElementById("rep-hora").value = hora;
-      document.getElementById("form-reprogramar").classList.add("hidden");
-      document.getElementById("det-error").classList.add("hidden");
+      document.getElementById("form-reprogramar").classList.add("is-hidden");
+      document.getElementById("det-error").classList.add("is-hidden");
       document.getElementById("det-acciones").style.display = (isStaff && isPendiente) ? "" : "none";
 
-      document.getElementById("modal-detalle-cita").classList.remove("hidden");
+      document.getElementById("modal-detalle-cita").classList.remove("is-hidden");
+      lucide.createIcons();
     }
 
     function cerrarModalDetalle() {
-      document.getElementById("modal-detalle-cita").classList.add("hidden");
+      document.getElementById("modal-detalle-cita").classList.add("is-hidden");
       currentCitaId = null;
     }
 
     document.getElementById("btn-cancelar-cita").addEventListener("click", async () => {
       if (!confirm("¿Cancelar esta cita? El historial se conserva.")) return;
       const errBox = document.getElementById("det-error");
-      errBox.classList.add("hidden");
+      errBox.classList.add("is-hidden");
       try {
         await SGCM.api(`/citas/${currentCitaId}`, { method: "DELETE" });
         cerrarModalDetalle();
         calendar.refetchEvents();
-      } catch (err) {
-        errBox.textContent = err.message;
-        errBox.classList.remove("hidden");
-      }
+      } catch (err) { setAlert(errBox, err.message); }
     });
 
     document.getElementById("btn-reprogramar").addEventListener("click", () => {
-      document.getElementById("form-reprogramar").classList.toggle("hidden");
+      document.getElementById("form-reprogramar").classList.toggle("is-hidden");
     });
 
     document.getElementById("form-reprogramar").addEventListener("submit", async (e) => {
       e.preventDefault();
       const errBox = document.getElementById("det-error");
-      errBox.classList.add("hidden");
+      errBox.classList.add("is-hidden");
       try {
         await SGCM.api(`/citas/${currentCitaId}`, {
           method: "PATCH",
@@ -426,26 +400,21 @@
         });
         cerrarModalDetalle();
         calendar.refetchEvents();
-      } catch (err) {
-        errBox.textContent = err.message;
-        errBox.classList.remove("hidden");
-      }
+      } catch (err) { setAlert(errBox, err.message); }
     });
 
-    // ══════════════ MODAL REPORTE PDF ══════════════
+    // ═══ Reporte PDF
     document.getElementById("btn-reporte").addEventListener("click", () => {
       const hoy = new Date();
       const y = hoy.getFullYear(), m = hoy.getMonth();
-      document.getElementById("rep-desde").value =
-        new Date(y, m, 1).toISOString().slice(0, 10);
-      document.getElementById("rep-hasta").value =
-        new Date(y, m + 1, 0).toISOString().slice(0, 10);
-      document.getElementById("rep-error").classList.add("hidden");
-      document.getElementById("modal-reporte").classList.remove("hidden");
+      document.getElementById("rep-desde").value = new Date(y, m, 1).toISOString().slice(0, 10);
+      document.getElementById("rep-hasta").value = new Date(y, m + 1, 0).toISOString().slice(0, 10);
+      document.getElementById("rep-error").classList.add("is-hidden");
+      document.getElementById("modal-reporte").classList.remove("is-hidden");
     });
 
     document.getElementById("rep-cerrar").addEventListener("click", () => {
-      document.getElementById("modal-reporte").classList.add("hidden");
+      document.getElementById("modal-reporte").classList.add("is-hidden");
     });
 
     document.getElementById("btn-descargar-reporte").addEventListener("click", async () => {
@@ -453,20 +422,13 @@
       const hasta = document.getElementById("rep-hasta").value;
       const medicoId = document.getElementById("rep-medico-sel").value;
       const errBox = document.getElementById("rep-error");
-      errBox.classList.add("hidden");
+      errBox.classList.add("is-hidden");
 
-      if (!desde || !hasta) {
-        errBox.textContent = "Seleccione un rango de fechas.";
-        errBox.classList.remove("hidden");
-        return;
-      }
+      if (!desde || !hasta) { setAlert(errBox, "Seleccione un rango de fechas."); return; }
       try {
         let url = `/api/v1/reportes/citas.pdf?desde=${desde}&hasta=${hasta}`;
         if (medicoId) url += `&id_medico=${medicoId}`;
-
-        const res = await fetch(url, {
-          headers: { Authorization: `Bearer ${SGCM.getToken()}` },
-        });
+        const res = await fetch(url, { headers: { Authorization: `Bearer ${SGCM.getToken()}` } });
         if (!res.ok) {
           const err = await res.json().catch(() => ({}));
           throw new Error(err.detail || `HTTP ${res.status}`);
@@ -478,11 +440,8 @@
         a.download = `reporte_citas_${desde}_${hasta}.pdf`;
         a.click();
         URL.revokeObjectURL(objUrl);
-        document.getElementById("modal-reporte").classList.add("hidden");
-      } catch (err) {
-        errBox.textContent = err.message;
-        errBox.classList.remove("hidden");
-      }
+        document.getElementById("modal-reporte").classList.add("is-hidden");
+      } catch (err) { setAlert(errBox, err.message); }
     });
   </script>
 </body>

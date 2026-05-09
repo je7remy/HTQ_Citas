@@ -8,7 +8,7 @@ from sqlmodel import Session, select
 from weasyprint import HTML
 
 from app.api.deps import require_roles
-from app.core.datetime_utils import formatear_fecha_emision
+from app.core.datetime_utils import formatear_fecha_emision, formatear_hora_12
 from app.db.session import get_session
 from app.models import Cita, Medico, Paciente, RolUsuario, Usuario
 
@@ -100,7 +100,7 @@ def reporte_citas_pdf(
         {
             "id": c.id,
             "fecha": c.fecha.isoformat(),
-            "hora": c.hora.strftime("%H:%M"),
+            "hora": formatear_hora_12(c.hora),
             "paciente": f"{p.nombre} {p.apellidos}",
             "medico": m.nombre,
             "estado": c.estado.value,

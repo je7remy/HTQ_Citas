@@ -4,141 +4,68 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>SGCM — Médicos</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="stylesheet" href="/static/css/sgcm.css" />
 </head>
-<body class="bg-slate-100 min-h-screen">
-  <header class="bg-blue-800 text-white shadow">
-    <div class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+<body>
+  <main id="page-main">
+    <div class="page-header">
       <div>
-        <h1 class="text-xl font-bold">SGCM — Médicos</h1>
-        <p class="text-xs text-blue-200">HTQPJB · La Vega</p>
+        <h1 class="page-header__title">Médicos</h1>
+        <p class="page-header__sub">Catálogo del personal médico, especialidades y horarios de consulta.</p>
       </div>
-      <nav class="flex items-center gap-3 text-sm">
-        <a href="/calendar.html" class="hover:underline">Calendario</a>
-        <a href="/pacientes.html" class="hover:underline">Pacientes</a>
-        <a href="/medicos.html" class="font-semibold underline">Médicos</a>
-        <span data-role="medico" style="display:none"><a href="/agenda.html" class="hover:underline">Mi Agenda</a></span>
-        <span data-role="admin" style="display:none"><a href="/usuarios.html" class="hover:underline">Usuarios</a></span>
-        <span data-role="admin" style="display:none"><a href="/auditoria.html" class="hover:underline">Auditoría</a></span>
-        <span id="user-info" class="ml-3 text-blue-200"></span>
-        <button id="logout" class="bg-blue-900 hover:bg-blue-950 px-3 py-1 rounded">Salir</button>
-      </nav>
-    </div>
-  </header>
-
-  <main class="max-w-7xl mx-auto p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
-    <!-- Columna izquierda: alta de médico (solo admin) -->
-    <section data-role="admin" style="display:none" class="bg-white rounded-2xl shadow p-5 lg:col-span-1">
-      <h2 class="text-lg font-semibold text-slate-800 mb-3">Nuevo médico</h2>
-
-      <!-- Selector de modo -->
-      <div class="flex gap-1 mb-4 bg-slate-100 rounded-lg p-1 text-sm">
-        <label id="tab-vincular"
-          class="flex-1 text-center py-1 rounded-md cursor-pointer font-medium transition-colors bg-white text-blue-700 shadow-sm">
-          <input type="radio" name="modo-creacion" value="vincular" checked class="sr-only">
-          Vincular existente
-        </label>
-        <label id="tab-nuevo"
-          class="flex-1 text-center py-1 rounded-md cursor-pointer font-medium transition-colors text-slate-500">
-          <input type="radio" name="modo-creacion" value="nuevo" class="sr-only">
-          Crear usuario nuevo
-        </label>
-      </div>
-
-      <form id="medico-form" class="space-y-3">
-
-        <!-- MODO A: vincular a usuario existente -->
-        <div id="seccion-vincular" class="space-y-3">
-          <div id="div-usuario-selector">
-            <label class="block text-sm text-slate-600">Vincular a usuario *</label>
-            <select id="id_usuario"
-              class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2">
-            </select>
-          </div>
-          <div id="sin-usuarios-msg" class="hidden text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded p-3">
-            No hay usuarios con rol médico disponibles. Cree uno primero en la pantalla
-            <a href="/usuarios.html" class="underline font-semibold">Usuarios</a>,
-            o use la pestaña "Crear usuario nuevo".
-          </div>
-        </div>
-
-        <!-- MODO B: crear usuario médico inline -->
-        <div id="seccion-nuevo" class="hidden space-y-3">
-          <div class="text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded p-2">
-            Se creará una cuenta con rol <strong>médico</strong> y se vinculará automáticamente al perfil.
-          </div>
-          <div>
-            <label class="block text-sm text-slate-600">Nombre del usuario *</label>
-            <input id="nuevo-nombre-usuario" placeholder="Nombre completo"
-              class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" />
-          </div>
-          <div>
-            <label class="block text-sm text-slate-600">Email *</label>
-            <input id="nuevo-email" type="email" placeholder="correo@ejemplo.do"
-              class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" />
-          </div>
-          <div>
-            <label class="block text-sm text-slate-600">Contraseña *</label>
-            <input id="nuevo-password" type="password" placeholder="Mínimo 8 caracteres"
-              class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" />
-          </div>
-        </div>
-
-        <!-- Campos comunes del perfil médico -->
-        <div>
-          <label class="block text-sm text-slate-600">Nombre del médico *</label>
-          <input id="nombre" required
-            class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" />
-        </div>
-        <div>
-          <label class="block text-sm text-slate-600">Especialidad *</label>
-          <select id="especialidad" required
-            class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2">
-            <option value="">Seleccione una especialidad…</option>
-          </select>
-        </div>
-        <div>
-          <label class="block text-sm text-slate-600">Teléfono</label>
-          <input id="telefono" placeholder="(000) 000-0000" maxlength="14"
-            class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" />
-        </div>
-
-        <div id="medico-error" class="hidden text-sm text-red-700 bg-red-50 border border-red-200 rounded p-2"></div>
-        <button id="btn-crear-medico" class="w-full bg-blue-700 hover:bg-blue-800 text-white font-semibold py-2 rounded-lg">
-          Crear médico
+      <div class="page-header__actions" data-role="admin" style="display:none">
+        <button id="btn-nuevo-medico" class="btn btn-primary">
+          <i data-lucide="plus"></i>
+          <span>Nuevo médico</span>
         </button>
-      </form>
-      <p class="mt-4 text-xs text-slate-400">Solo administradores pueden registrar médicos.</p>
+      </div>
+    </div>
+
+    <!-- Listado -->
+    <section class="card">
+      <div class="card__header">
+        <div>
+          <div class="card__title">Médicos activos</div>
+          <div class="card__sub" id="medicos-total">—</div>
+        </div>
+      </div>
+      <div class="card__body" style="padding:0;">
+        <div class="table-wrap" style="border:none; border-radius:0;">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Nombre</th>
+                <th>Especialidad</th>
+                <th>Teléfono</th>
+                <th class="text-right">Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="tbody-medicos"></tbody>
+          </table>
+        </div>
+      </div>
     </section>
 
-    <!-- Columna derecha: listado + horarios -->
-    <section class="bg-white rounded-2xl shadow p-5 lg:col-span-2">
-      <h2 class="text-lg font-semibold text-slate-800 mb-4">Médicos activos</h2>
-      <div class="overflow-x-auto">
-        <table class="w-full text-sm">
-          <thead class="bg-slate-100 text-slate-600 text-left">
-            <tr>
-              <th class="px-3 py-2">Nombre</th>
-              <th class="px-3 py-2">Especialidad</th>
-              <th class="px-3 py-2">Teléfono</th>
-              <th class="px-3 py-2 text-right">Acciones</th>
-            </tr>
-          </thead>
-          <tbody id="tbody-medicos" class="divide-y divide-slate-100"></tbody>
-        </table>
+    <!-- Panel de horarios -->
+    <section id="horarios-panel" class="card is-hidden" style="margin-top:18px;">
+      <div class="card__header">
+        <div>
+          <div class="card__title">Horarios de <span id="horarios-medico-nombre"></span></div>
+          <div class="card__sub">Bloques semanales de atención. Las horas se muestran en formato 12h.</div>
+        </div>
+        <button type="button" id="cerrar-horarios" class="icon-btn" aria-label="Cerrar"><i data-lucide="x"></i></button>
       </div>
-
-      <!-- Panel de horarios (aparece al seleccionar médico) -->
-      <div id="horarios-panel" class="hidden mt-6 border-t border-slate-200 pt-5">
-        <h3 class="font-semibold text-slate-800 mb-3">
-          Horarios de <span id="horarios-medico-nombre"></span>
-        </h3>
-
-        <div id="horario-form-container">
-          <form id="horario-form" class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-            <div>
-              <label class="block text-xs text-slate-600">Día</label>
-              <select id="dia_semana" class="mt-1 w-full rounded-lg border border-slate-300 px-2 py-2">
+      <div class="card__body stack">
+        <div id="horario-form-container" data-role="admin" style="display:none">
+          <form id="horario-form" class="grid-4" style="align-items:end;">
+            <div class="field">
+              <label class="field__label">Día</label>
+              <select id="dia_semana" class="select">
                 <option value="1">Lunes</option>
                 <option value="2">Martes</option>
                 <option value="3">Miércoles</option>
@@ -148,151 +75,243 @@
                 <option value="7">Domingo</option>
               </select>
             </div>
-            <div>
-              <label class="block text-xs text-slate-600">Inicio</label>
-              <input type="time" id="hora_inicio" required
-                class="mt-1 w-full rounded-lg border border-slate-300 px-2 py-2" />
+            <div class="field">
+              <label class="field__label">Inicio</label>
+              <input type="time" id="hora_inicio" required class="input" />
+            </div>
+            <div class="field">
+              <label class="field__label">Fin</label>
+              <input type="time" id="hora_fin" required class="input" />
             </div>
             <div>
-              <label class="block text-xs text-slate-600">Fin</label>
-              <input type="time" id="hora_fin" required
-                class="mt-1 w-full rounded-lg border border-slate-300 px-2 py-2" />
-            </div>
-            <div class="flex items-end">
-              <button class="w-full bg-blue-700 hover:bg-blue-800 text-white text-sm font-semibold py-2 rounded-lg">
-                Añadir
+              <button class="btn btn-primary" style="width:100%;">
+                <i data-lucide="plus"></i>
+                <span>Añadir bloque</span>
               </button>
             </div>
           </form>
         </div>
-<ul id="horarios-list" class="space-y-1 text-sm"></ul>
+
+        <div id="horarios-list-wrap">
+          <ul id="horarios-list" class="row" style="list-style:none; padding:0; margin:0;"></ul>
+        </div>
       </div>
     </section>
   </main>
 
-  <!-- ══════════════ MODAL: EDITAR MÉDICO ══════════════ -->
-  <div id="modal-editar-medico" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-    <div class="bg-white rounded-2xl shadow-xl w-full max-w-md">
-      <div class="flex items-center justify-between px-6 py-4 border-b border-slate-200">
-        <h2 class="text-lg font-semibold text-slate-800">Editar médico</h2>
-        <button id="em-cerrar" class="text-slate-400 hover:text-slate-600 text-xl font-bold">&times;</button>
+  <!-- ══════════════ MODAL: NUEVO MÉDICO ══════════════ -->
+  <div id="modal-nuevo-medico" class="modal-backdrop is-hidden">
+    <div class="modal modal--lg">
+      <div class="modal__header">
+        <h2 class="modal__title">Nuevo médico</h2>
+        <button type="button" class="modal__close" id="nm-cerrar"><i data-lucide="x"></i></button>
       </div>
-      <form id="form-editar-medico" class="p-6 space-y-4">
-        <input type="hidden" id="em-id" />
-        <div>
-          <label class="block text-sm text-slate-600">Nombre *</label>
-          <input id="em-nombre" required
-            class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" />
+      <div class="modal__body stack">
+        <div class="tabs" style="align-self:center;">
+          <button type="button" id="tab-vincular" class="tab is-active">Vincular usuario existente</button>
+          <button type="button" id="tab-nuevo" class="tab">Crear usuario nuevo</button>
         </div>
-        <div>
-          <label class="block text-sm text-slate-600">Especialidad *</label>
-          <select id="em-especialidad" required
-            class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2">
+
+        <form id="medico-form" class="stack">
+          <!-- MODO A: vincular -->
+          <div id="seccion-vincular" class="stack">
+            <div id="div-usuario-selector" class="field">
+              <label class="field__label">Vincular a usuario *</label>
+              <select id="id_usuario" class="select"></select>
+            </div>
+            <div id="sin-usuarios-msg" class="alert alert--warning is-hidden">
+              <i data-lucide="alert-triangle"></i>
+              <span>No hay usuarios con rol médico disponibles. Cree uno primero en <a href="/usuarios.html" style="text-decoration:underline; font-weight:600;">Usuarios</a> o use la pestaña "Crear usuario nuevo".</span>
+            </div>
+          </div>
+
+          <!-- MODO B: crear inline -->
+          <div id="seccion-nuevo" class="is-hidden stack">
+            <div class="alert alert--info">
+              <i data-lucide="info"></i>
+              <span>Se creará una cuenta con rol <strong>médico</strong> y se vinculará automáticamente al perfil.</span>
+            </div>
+            <div class="field">
+              <label class="field__label">Nombre del usuario *</label>
+              <input id="nuevo-nombre-usuario" placeholder="Nombre completo" class="input" />
+            </div>
+            <div class="grid-2">
+              <div class="field">
+                <label class="field__label">Email *</label>
+                <input id="nuevo-email" type="email" placeholder="correo@ejemplo.do" class="input" />
+              </div>
+              <div class="field">
+                <label class="field__label">Contraseña *</label>
+                <input id="nuevo-password" type="password" placeholder="Mín. 8 caracteres" class="input" />
+              </div>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="grid-2">
+            <div class="field">
+              <label class="field__label">Nombre del médico *</label>
+              <input id="nombre" required class="input" placeholder="Sin prefijo Dr." />
+              <span class="field__hint">El prefijo "Dr." se añade automáticamente al mostrar.</span>
+            </div>
+            <div class="field">
+              <label class="field__label">Especialidad *</label>
+              <select id="especialidad" required class="select">
+                <option value="">Seleccione una especialidad…</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="field">
+            <label class="field__label">Teléfono</label>
+            <input id="telefono" placeholder="(000) 000-0000" maxlength="14" class="input" />
+          </div>
+
+          <div id="medico-error" class="alert alert--danger is-hidden">
+            <i data-lucide="alert-circle"></i>
+            <span></span>
+          </div>
+        </form>
+      </div>
+      <div class="modal__footer">
+        <button type="button" id="nm-cancelar" class="btn btn-ghost">Cancelar</button>
+        <button type="submit" form="medico-form" id="btn-crear-medico" class="btn btn-primary">
+          <i data-lucide="check"></i>
+          <span>Crear médico</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════ MODAL: EDITAR MÉDICO ══════════════ -->
+  <div id="modal-editar-medico" class="modal-backdrop is-hidden">
+    <div class="modal">
+      <div class="modal__header">
+        <h2 class="modal__title">Editar médico</h2>
+        <button type="button" class="modal__close" id="em-cerrar"><i data-lucide="x"></i></button>
+      </div>
+      <form id="form-editar-medico" class="modal__body stack">
+        <input type="hidden" id="em-id" />
+        <div class="field">
+          <label class="field__label">Nombre *</label>
+          <input id="em-nombre" required class="input" />
+        </div>
+        <div class="field">
+          <label class="field__label">Especialidad *</label>
+          <select id="em-especialidad" required class="select">
             <option value="">Seleccione una especialidad…</option>
           </select>
         </div>
-        <div>
-          <label class="block text-sm text-slate-600">Teléfono</label>
-          <input id="em-telefono" placeholder="(000) 000-0000" maxlength="14"
-            class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" />
+        <div class="field">
+          <label class="field__label">Teléfono</label>
+          <input id="em-telefono" placeholder="(000) 000-0000" maxlength="14" class="input" />
         </div>
-        <div class="flex items-center gap-2">
-          <input type="checkbox" id="em-activo" class="rounded" />
-          <label for="em-activo" class="text-sm text-slate-600">Médico activo</label>
-        </div>
-        <div id="em-error" class="hidden text-sm text-red-700 bg-red-50 border border-red-200 rounded p-2"></div>
-        <div class="flex gap-2 pt-1">
-          <button type="submit"
-            class="flex-1 bg-blue-700 hover:bg-blue-800 text-white font-semibold py-2 rounded-lg">
-            Guardar cambios
-          </button>
-          <button type="button" id="em-cancelar"
-            class="bg-slate-200 hover:bg-slate-300 text-slate-800 px-4 py-2 rounded-lg">
-            Cancelar
-          </button>
+        <label class="row row--sm" style="align-items:center; cursor:pointer;">
+          <input type="checkbox" id="em-activo" />
+          <span style="font-size:14px;">Médico activo</span>
+        </label>
+        <div id="em-error" class="alert alert--danger is-hidden">
+          <i data-lucide="alert-circle"></i>
+          <span></span>
         </div>
       </form>
+      <div class="modal__footer">
+        <button type="button" id="em-cancelar" class="btn btn-ghost">Cancelar</button>
+        <button type="submit" form="form-editar-medico" class="btn btn-primary">
+          <i data-lucide="check"></i>
+          <span>Guardar cambios</span>
+        </button>
+      </div>
     </div>
   </div>
 
   <script src="/static/js/app.js"></script>
   <script>
-    SGCM.requireAuth();
-
-    SGCM.applyMaskTelefono(document.getElementById("telefono"));
-    SGCM.applyMaskTelefono(document.getElementById("em-telefono"));
-
-    async function poblarSelectoresEspecialidad() {
-      const data = await SGCM.api("/medicos/especialidades");
-      const opciones = data.especialidades
-        .map(e => `<option value="${e}">${e}</option>`)
-        .join("");
-      document.getElementById("especialidad").insertAdjacentHTML("beforeend", opciones);
-      document.getElementById("em-especialidad").insertAdjacentHTML("beforeend", opciones);
-    }
-    poblarSelectoresEspecialidad();
-
     const DIAS = { 1: "Lun", 2: "Mar", 3: "Mié", 4: "Jue", 5: "Vie", 6: "Sáb", 7: "Dom" };
     let medicoSeleccionado = null;
     let currentUserRol = null;
 
+    function setAlert(box, msg) {
+      box.querySelector("span").textContent = msg;
+      box.classList.remove("is-hidden");
+      lucide.createIcons();
+    }
+
     (async () => {
-      const me = await SGCM.me();
-      document.getElementById("user-info").textContent = `${me.nombre} (${me.rol})`;
-      currentUserRol = me.rol;
-      SGCM.applyNavPermissions(me.rol);
+      const me = await SGCM.mountShell({ active: 'medicos', pageTitle: 'Médicos' });
+      currentUserRol = me?.rol;
+      SGCM.applyMaskTelefono(document.getElementById("telefono"));
+      SGCM.applyMaskTelefono(document.getElementById("em-telefono"));
+      await poblarSelectoresEspecialidad();
+      await cargarMedicos();
+      lucide.createIcons();
     })();
 
-    document.getElementById("logout").addEventListener("click", () => {
-      SGCM.logout();
-      window.location.href = "/login.html";
-    });
+    async function poblarSelectoresEspecialidad() {
+      const data = await SGCM.api("/medicos/especialidades");
+      const opciones = data.especialidades.map(e => `<option value="${e}">${e}</option>`).join("");
+      document.getElementById("especialidad").insertAdjacentHTML("beforeend", opciones);
+      document.getElementById("em-especialidad").insertAdjacentHTML("beforeend", opciones);
+    }
 
     async function cargarMedicos() {
       const data = await SGCM.api("/medicos");
       const tbody = document.getElementById("tbody-medicos");
+      const totalInfo = document.getElementById("medicos-total");
       tbody.innerHTML = "";
+
       if (data.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="4" class="text-center text-slate-400 py-6">Sin médicos</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="4" style="padding:0;">
+          <div class="empty-state">
+            <div class="empty-state__icon"><i data-lucide="stethoscope"></i></div>
+            <div class="empty-state__title">Sin médicos registrados</div>
+            <div class="empty-state__text">Agregue el primer médico al catálogo.</div>
+          </div>
+        </td></tr>`;
+        totalInfo.textContent = "Sin registros";
+        lucide.createIcons();
         return;
       }
+      totalInfo.textContent = `${data.length} médico${data.length === 1 ? "" : "s"}`;
       const isAdmin = currentUserRol === "admin";
       for (const m of data) {
         const tr = document.createElement("tr");
         tr.innerHTML = `
-          <td class="px-3 py-2 font-medium">${SGCM.formatMedicoNombre(m.nombre)}</td>
-          <td class="px-3 py-2">${m.especialidad}</td>
-          <td class="px-3 py-2">${m.telefono ? SGCM.formatTelefono(m.telefono) : "—"}</td>
-          <td class="px-3 py-2 text-right flex justify-end gap-3">
-            <button data-id="${m.id}" data-nombre="${m.nombre}" class="ver-btn text-blue-700 hover:underline text-sm">
-              Horarios
-            </button>
-            ${isAdmin ? `
-            <button data-id="${m.id}" data-nombre="${m.nombre}" data-especialidad="${m.especialidad}"
-              data-telefono="${m.telefono || ''}" data-activo="${m.activo}"
-              class="edit-btn text-amber-600 hover:underline text-sm">Editar</button>
-            ` : ""}
-          </td>
-        `;
+          <td><strong>${SGCM.formatMedicoNombre(m.nombre)}</strong></td>
+          <td><span class="badge badge--teal">${m.especialidad}</span></td>
+          <td class="mono">${m.telefono ? SGCM.formatTelefono(m.telefono) : "—"}</td>
+          <td class="text-right">
+            <span class="row-actions">
+              <button data-id="${m.id}" data-nombre="${m.nombre}" class="ver-btn icon-btn" title="Horarios">
+                <i data-lucide="clock"></i>
+              </button>
+              ${isAdmin ? `<button data-id="${m.id}" data-nombre="${m.nombre}" data-especialidad="${m.especialidad}"
+                data-telefono="${m.telefono || ''}" data-activo="${m.activo}"
+                class="edit-btn icon-btn" title="Editar"><i data-lucide="pencil"></i></button>` : ""}
+            </span>
+          </td>`;
         tbody.appendChild(tr);
       }
       tbody.querySelectorAll(".ver-btn").forEach((b) =>
-        b.addEventListener("click", () => abrirHorarios(b.dataset.id, b.dataset.nombre))
-      );
+        b.addEventListener("click", () => abrirHorarios(b.dataset.id, b.dataset.nombre)));
       if (isAdmin) {
         tbody.querySelectorAll(".edit-btn").forEach((b) =>
-          b.addEventListener("click", () => abrirModalEditar(b.dataset))
-        );
+          b.addEventListener("click", () => abrirModalEditar(b.dataset)));
       }
+      lucide.createIcons();
     }
+
+    document.getElementById("cerrar-horarios").addEventListener("click", () => {
+      document.getElementById("horarios-panel").classList.add("is-hidden");
+    });
 
     async function abrirHorarios(medicoId, nombre) {
       medicoSeleccionado = parseInt(medicoId);
       document.getElementById("horarios-medico-nombre").textContent = SGCM.formatMedicoNombre(nombre);
-      document.getElementById("horarios-panel").classList.remove("hidden");
-      const isAdmin = currentUserRol === "admin";
-      document.getElementById("horario-form-container").style.display = isAdmin ? "" : "none";
+      document.getElementById("horarios-panel").classList.remove("is-hidden");
       await cargarHorarios();
+      document.getElementById("horarios-panel").scrollIntoView({ behavior: "smooth", block: "start" });
     }
 
     async function cargarHorarios() {
@@ -300,16 +319,17 @@
       const ul = document.getElementById("horarios-list");
       ul.innerHTML = "";
       if (data.length === 0) {
-        ul.innerHTML = `<li class="text-slate-400">Sin horarios definidos</li>`;
+        ul.innerHTML = `<li class="text-muted" style="font-size:13.5px;">Sin horarios definidos.</li>`;
         return;
       }
       const isAdmin = currentUserRol === "admin";
       for (const h of data) {
         const li = document.createElement("li");
-        li.className = "flex items-center justify-between bg-slate-50 px-3 py-2 rounded";
+        li.className = "pill";
         li.innerHTML = `
-          <span><strong>${DIAS[h.dia_semana]}</strong> · ${h.hora_inicio.slice(0,5)} – ${h.hora_fin.slice(0,5)}</span>
-          ${isAdmin ? `<button data-id="${h.id}" class="del-h text-red-600 text-xs hover:underline">Eliminar</button>` : ""}
+          <span class="pill__day">${DIAS[h.dia_semana]}</span>
+          <span class="pill__time">${SGCM.formatRangoHora12(h.hora_inicio, h.hora_fin)}</span>
+          ${isAdmin ? `<button data-id="${h.id}" class="del-h pill__remove" title="Eliminar"><i data-lucide="x"></i></button>` : ""}
         `;
         ul.appendChild(li);
       }
@@ -322,39 +342,43 @@
           })
         );
       }
+      lucide.createIcons();
     }
 
-    // ── Tabs de modo de creación ──────────────────────────────────────────────
-    let modoCreacion = "vincular";
+    // ═══ Modal nuevo médico ═══
+    const modalNuevo = document.getElementById("modal-nuevo-medico");
+    document.getElementById("btn-nuevo-medico").addEventListener("click", abrirModalNuevoMedico);
+    document.getElementById("nm-cerrar").addEventListener("click", () => modalNuevo.classList.add("is-hidden"));
+    document.getElementById("nm-cancelar").addEventListener("click", () => modalNuevo.classList.add("is-hidden"));
 
+    function abrirModalNuevoMedico() {
+      document.getElementById("medico-form").reset();
+      document.getElementById("medico-error").classList.add("is-hidden");
+      activarTab("vincular");
+      modalNuevo.classList.remove("is-hidden");
+      cargarUsuariosDisponibles();
+    }
+
+    let modoCreacion = "vincular";
     function activarTab(modo) {
       modoCreacion = modo;
-      const tabVincular = document.getElementById("tab-vincular");
-      const tabNuevo = document.getElementById("tab-nuevo");
-      const secVincular = document.getElementById("seccion-vincular");
-      const secNuevo = document.getElementById("seccion-nuevo");
-      const btn = document.getElementById("btn-crear-medico");
+      const tabV = document.getElementById("tab-vincular");
+      const tabN = document.getElementById("tab-nuevo");
+      const secV = document.getElementById("seccion-vincular");
+      const secN = document.getElementById("seccion-nuevo");
+      const btn  = document.getElementById("btn-crear-medico");
 
       if (modo === "vincular") {
-        tabVincular.className = "flex-1 text-center py-1 rounded-md cursor-pointer font-medium transition-colors bg-white text-blue-700 shadow-sm";
-        tabNuevo.className    = "flex-1 text-center py-1 rounded-md cursor-pointer font-medium transition-colors text-slate-500";
-        secVincular.classList.remove("hidden");
-        secNuevo.classList.add("hidden");
+        tabV.classList.add("is-active"); tabN.classList.remove("is-active");
+        secV.classList.remove("is-hidden"); secN.classList.add("is-hidden");
         cargarUsuariosDisponibles();
       } else {
-        tabNuevo.className    = "flex-1 text-center py-1 rounded-md cursor-pointer font-medium transition-colors bg-white text-blue-700 shadow-sm";
-        tabVincular.className = "flex-1 text-center py-1 rounded-md cursor-pointer font-medium transition-colors text-slate-500";
-        secNuevo.classList.remove("hidden");
-        secVincular.classList.add("hidden");
+        tabN.classList.add("is-active"); tabV.classList.remove("is-active");
+        secN.classList.remove("is-hidden"); secV.classList.add("is-hidden");
         btn.disabled = false;
-        btn.classList.remove("opacity-50", "cursor-not-allowed");
-        btn.classList.add("hover:bg-blue-800");
       }
     }
 
-    document.querySelectorAll("input[name='modo-creacion']").forEach((radio) => {
-      radio.addEventListener("change", () => activarTab(radio.value));
-    });
     document.getElementById("tab-vincular").addEventListener("click", () => activarTab("vincular"));
     document.getElementById("tab-nuevo").addEventListener("click", () => activarTab("nuevo"));
 
@@ -368,17 +392,13 @@
         const usuarios = await SGCM.api("/usuarios?rol=medico&sin_perfil_medico=true");
         sel.innerHTML = "";
         if (usuarios.length === 0) {
-          divSel.classList.add("hidden");
-          sinMsg.classList.remove("hidden");
+          divSel.classList.add("is-hidden");
+          sinMsg.classList.remove("is-hidden");
           btn.disabled = true;
-          btn.classList.add("opacity-50", "cursor-not-allowed");
-          btn.classList.remove("hover:bg-blue-800");
         } else {
-          divSel.classList.remove("hidden");
-          sinMsg.classList.add("hidden");
+          divSel.classList.remove("is-hidden");
+          sinMsg.classList.add("is-hidden");
           btn.disabled = false;
-          btn.classList.remove("opacity-50", "cursor-not-allowed");
-          btn.classList.add("hover:bg-blue-800");
           for (const u of usuarios) {
             const opt = document.createElement("option");
             opt.value = u.id;
@@ -386,15 +406,14 @@
             sel.appendChild(opt);
           }
         }
-      } catch (err) {
-        console.error("Error cargando usuarios disponibles:", err);
-      }
+        lucide.createIcons();
+      } catch (err) { console.error(err); }
     }
 
     document.getElementById("medico-form").addEventListener("submit", async (e) => {
       e.preventDefault();
       const errBox = document.getElementById("medico-error");
-      errBox.classList.add("hidden");
+      errBox.classList.add("is-hidden");
 
       const nombre       = document.getElementById("nombre").value.trim();
       const especialidad = document.getElementById("especialidad").value.trim();
@@ -405,38 +424,24 @@
           const idUsuario = document.getElementById("id_usuario").value;
           await SGCM.api("/medicos", {
             method: "POST",
-            body: JSON.stringify({
-              id_usuario: idUsuario ? parseInt(idUsuario) : null,
-              nombre,
-              especialidad,
-              telefono,
-            }),
+            body: JSON.stringify({ id_usuario: idUsuario ? parseInt(idUsuario) : null, nombre, especialidad, telefono }),
           });
         } else {
           const nombreUsuario = document.getElementById("nuevo-nombre-usuario").value.trim();
           const email         = document.getElementById("nuevo-email").value.trim();
           const password      = document.getElementById("nuevo-password").value;
           if (!nombreUsuario || !email || !password) {
-            errBox.textContent = "Nombre, email y contraseña del usuario son obligatorios.";
-            errBox.classList.remove("hidden");
+            setAlert(errBox, "Nombre, email y contraseña del usuario son obligatorios.");
             return;
           }
           await SGCM.api("/medicos/con-usuario", {
             method: "POST",
-            body: JSON.stringify({
-              usuario: { nombre: nombreUsuario, email, password },
-              medico:  { nombre, especialidad, telefono },
-            }),
+            body: JSON.stringify({ usuario: { nombre: nombreUsuario, email, password }, medico: { nombre, especialidad, telefono } }),
           });
         }
-        e.target.reset();
-        activarTab("vincular");
+        modalNuevo.classList.add("is-hidden");
         await cargarMedicos();
-        await cargarUsuariosDisponibles();
-      } catch (err) {
-        errBox.textContent = err.message;
-        errBox.classList.remove("hidden");
-      }
+      } catch (err) { setAlert(errBox, err.message); }
     });
 
     document.getElementById("horario-form").addEventListener("submit", async (e) => {
@@ -453,14 +458,13 @@
         });
         e.target.reset();
         await cargarHorarios();
-      } catch (err) {
-        alert(err.message);
-      }
+      } catch (err) { alert(err.message); }
     });
 
-    // ══════════════ MODAL EDITAR MÉDICO ══════════════
-    document.getElementById("em-cerrar").addEventListener("click", cerrarModalEditar);
-    document.getElementById("em-cancelar").addEventListener("click", cerrarModalEditar);
+    // ═══ Modal editar médico ═══
+    const modalEditar = document.getElementById("modal-editar-medico");
+    document.getElementById("em-cerrar").addEventListener("click", () => modalEditar.classList.add("is-hidden"));
+    document.getElementById("em-cancelar").addEventListener("click", () => modalEditar.classList.add("is-hidden"));
 
     function abrirModalEditar(data) {
       document.getElementById("em-id").value = data.id;
@@ -470,18 +474,14 @@
       if (!selEsp.value) selEsp.value = "";
       document.getElementById("em-telefono").value = SGCM.formatTelefono(data.telefono);
       document.getElementById("em-activo").checked = data.activo === "true";
-      document.getElementById("em-error").classList.add("hidden");
-      document.getElementById("modal-editar-medico").classList.remove("hidden");
-    }
-
-    function cerrarModalEditar() {
-      document.getElementById("modal-editar-medico").classList.add("hidden");
+      document.getElementById("em-error").classList.add("is-hidden");
+      modalEditar.classList.remove("is-hidden");
     }
 
     document.getElementById("form-editar-medico").addEventListener("submit", async (e) => {
       e.preventDefault();
       const errBox = document.getElementById("em-error");
-      errBox.classList.add("hidden");
+      errBox.classList.add("is-hidden");
       const id = document.getElementById("em-id").value;
       try {
         await SGCM.api(`/medicos/${id}`, {
@@ -493,16 +493,10 @@
             activo: document.getElementById("em-activo").checked,
           }),
         });
-        cerrarModalEditar();
+        modalEditar.classList.add("is-hidden");
         await cargarMedicos();
-      } catch (err) {
-        errBox.textContent = err.message;
-        errBox.classList.remove("hidden");
-      }
+      } catch (err) { setAlert(errBox, err.message); }
     });
-
-    cargarMedicos();
-    cargarUsuariosDisponibles();
   </script>
 </body>
 </html>

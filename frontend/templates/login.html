@@ -4,44 +4,74 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>SGCM — Iniciar sesión</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="stylesheet" href="/static/css/sgcm.css" />
 </head>
-<body class="bg-slate-100 min-h-screen flex items-center justify-center">
-  <div class="bg-white shadow-xl rounded-2xl w-full max-w-md p-8">
-    <div class="text-center mb-6">
-      <h1 class="text-2xl font-bold text-blue-800">SGCM</h1>
-      <p class="text-sm text-slate-500">Hospital Regional Traumatológico y Quirúrgico Prof. Juan Bosch</p>
+<body>
+  <div class="login-shell">
+    <div class="login-card">
+      <div class="login-brand">
+        <div class="login-brand__mark">
+          <i data-lucide="activity"></i>
+        </div>
+        <div style="text-align:center;">
+          <div class="login-brand__name">SGCM</div>
+          <div class="login-brand__sub">Hospital Regional Traumatológico y Quirúrgico Prof. Juan Bosch</div>
+        </div>
+      </div>
+
+      <form id="login-form" class="stack" autocomplete="on">
+        <div class="field">
+          <label class="field__label" for="email">Correo electrónico</label>
+          <div class="input-group">
+            <i data-lucide="mail" class="input-group__icon"></i>
+            <input id="email" type="email" required autocomplete="username"
+              class="input" placeholder="usuario@htqpjb.gob.do" />
+          </div>
+        </div>
+
+        <div class="field">
+          <label class="field__label" for="password">Contraseña</label>
+          <div class="input-group">
+            <i data-lucide="lock" class="input-group__icon"></i>
+            <input id="password" type="password" required autocomplete="current-password"
+              class="input" placeholder="••••••••" />
+          </div>
+        </div>
+
+        <div id="error" class="alert alert--danger is-hidden">
+          <i data-lucide="alert-circle"></i>
+          <span id="error-msg"></span>
+        </div>
+
+        <button type="submit" id="btn-login" class="btn btn-primary btn-lg" style="width:100%; margin-top:4px;">
+          <span id="btn-login-label">Iniciar sesión</span>
+        </button>
+      </form>
+
+      <div class="login-footer">© 2026 SGCM · La Vega, R.D.</div>
     </div>
-
-    <form id="login-form" class="space-y-4">
-      <div>
-        <label class="block text-sm font-medium text-slate-700">Email</label>
-        <input id="email" type="email" required
-               class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
-      </div>
-      <div>
-        <label class="block text-sm font-medium text-slate-700">Contraseña</label>
-        <input id="password" type="password" required
-               class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
-      </div>
-
-      <div id="error" class="hidden text-sm text-red-600 bg-red-50 border border-red-200 rounded p-2"></div>
-
-      <button type="submit"
-              class="w-full bg-blue-700 hover:bg-blue-800 text-white font-semibold py-2 rounded-lg transition">
-        Iniciar sesión
-      </button>
-    </form>
-
-    <p class="mt-6 text-xs text-center text-slate-400">© 2026 SGCM · La Vega, R.D.</p>
   </div>
 
   <script src="/static/js/app.js"></script>
   <script>
-    document.getElementById("login-form").addEventListener("submit", async (e) => {
+    lucide.createIcons();
+
+    const form     = document.getElementById("login-form");
+    const errBox   = document.getElementById("error");
+    const errMsg   = document.getElementById("error-msg");
+    const btn      = document.getElementById("btn-login");
+    const btnLabel = document.getElementById("btn-login-label");
+
+    form.addEventListener("submit", async (e) => {
       e.preventDefault();
-      const errBox = document.getElementById("error");
-      errBox.classList.add("hidden");
+      errBox.classList.add("is-hidden");
+      btn.disabled = true;
+      btnLabel.innerHTML = '<span class="spinner" style="vertical-align:-3px; margin-right:8px;"></span>Verificando…';
       try {
         await SGCM.login(
           document.getElementById("email").value,
@@ -49,8 +79,12 @@
         );
         window.location.href = "/calendar.html";
       } catch (err) {
-        errBox.textContent = err.message;
-        errBox.classList.remove("hidden");
+        errMsg.textContent = err.message;
+        errBox.classList.remove("is-hidden");
+        lucide.createIcons();
+      } finally {
+        btn.disabled = false;
+        btnLabel.textContent = "Iniciar sesión";
       }
     });
   </script>

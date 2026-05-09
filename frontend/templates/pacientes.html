@@ -4,176 +4,207 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>SGCM — Pacientes</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="stylesheet" href="/static/css/sgcm.css" />
 </head>
-<body class="bg-slate-100 min-h-screen">
-  <header class="bg-blue-800 text-white shadow">
-    <div class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+<body>
+  <main id="page-main">
+    <div class="page-header">
       <div>
-        <h1 class="text-xl font-bold">SGCM — Pacientes</h1>
-        <p class="text-xs text-blue-200">HTQPJB · La Vega</p>
+        <h1 class="page-header__title">Gestión de Pacientes</h1>
+        <p class="page-header__sub">Registro civil de pacientes del HTQPJB.</p>
       </div>
-      <nav class="flex items-center gap-3 text-sm">
-        <a href="/calendar.html" class="hover:underline">Calendario</a>
-        <a href="/pacientes.html" class="font-semibold underline">Pacientes</a>
-        <a href="/medicos.html" class="hover:underline">Médicos</a>
-        <span data-role="medico" style="display:none"><a href="/agenda.html" class="hover:underline">Mi Agenda</a></span>
-        <span data-role="admin" style="display:none"><a href="/usuarios.html" class="hover:underline">Usuarios</a></span>
-        <span data-role="admin" style="display:none"><a href="/auditoria.html" class="hover:underline">Auditoría</a></span>
-        <span id="user-info" class="ml-3 text-blue-200"></span>
-        <button id="logout" class="bg-blue-900 hover:bg-blue-950 px-3 py-1 rounded">Salir</button>
-      </nav>
+      <div class="page-header__actions" data-role="staff" style="display:none">
+        <button id="btn-nuevo" class="btn btn-primary">
+          <i data-lucide="user-plus"></i>
+          <span>Nuevo paciente</span>
+        </button>
+      </div>
     </div>
-  </header>
 
-  <main class="max-w-7xl mx-auto p-6 space-y-6">
-    <!-- Formulario de alta / edición (solo staff) -->
-    <section id="form-section" data-role="staff" style="display:none" class="bg-white rounded-2xl shadow p-5">
-      <h2 id="form-title" class="text-lg font-semibold text-slate-800 mb-4">Nuevo paciente</h2>
-      <form id="paciente-form" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+    <!-- Formulario de alta / edición -->
+    <section id="form-section" data-role="staff" style="display:none" class="card is-hidden" style="margin-bottom:18px;">
+      <div class="card__header">
+        <div>
+          <div class="card__title" id="form-title">Nuevo paciente</div>
+          <div class="card__sub">Complete los datos requeridos.</div>
+        </div>
+        <button type="button" id="form-collapse" class="icon-btn" aria-label="Cerrar formulario">
+          <i data-lucide="x"></i>
+        </button>
+      </div>
+      <form id="paciente-form" class="card__body grid-3">
         <input type="hidden" id="paciente-id" />
-        <div>
-          <label class="block text-sm text-slate-600">Cédula *</label>
-          <input id="cedula" required maxlength="13" placeholder="000-0000000-0"
-            class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-mono" />
+        <div class="field">
+          <label class="field__label">Cédula *</label>
+          <input id="cedula" required maxlength="13" placeholder="000-0000000-0" class="input mono" style="font-family:ui-monospace, monospace;" />
         </div>
-        <div>
-          <label class="block text-sm text-slate-600">Nombre *</label>
-          <input id="nombre" required
-            class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" />
+        <div class="field">
+          <label class="field__label">Nombre *</label>
+          <input id="nombre" required class="input" />
         </div>
-        <div>
-          <label class="block text-sm text-slate-600">Apellidos *</label>
-          <input id="apellidos" required
-            class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" />
+        <div class="field">
+          <label class="field__label">Apellidos *</label>
+          <input id="apellidos" required class="input" />
         </div>
-        <div>
-          <label class="block text-sm text-slate-600">Teléfono *</label>
-          <input id="telefono" required placeholder="(000) 000-0000" maxlength="14"
-            class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" />
+        <div class="field">
+          <label class="field__label">Teléfono *</label>
+          <input id="telefono" required placeholder="(000) 000-0000" maxlength="14" class="input" />
         </div>
-        <div>
-          <label class="block text-sm text-slate-600">Fecha de nacimiento</label>
-          <input id="fecha_nacimiento" type="date"
-            class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" />
+        <div class="field">
+          <label class="field__label">Fecha de nacimiento</label>
+          <input id="fecha_nacimiento" type="date" class="input" />
         </div>
-        <div>
-          <label class="block text-sm text-slate-600">Dirección</label>
-          <input id="direccion"
-            class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" />
+        <div class="field">
+          <label class="field__label">Dirección</label>
+          <input id="direccion" class="input" />
         </div>
 
-        <div id="form-error" class="hidden md:col-span-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded p-2"></div>
+        <div id="form-error" class="alert alert--danger is-hidden" style="grid-column:1/-1;">
+          <i data-lucide="alert-circle"></i>
+          <span></span>
+        </div>
 
-        <div class="md:col-span-3 flex gap-2">
-          <button type="submit"
-            class="bg-blue-700 hover:bg-blue-800 text-white font-semibold px-4 py-2 rounded-lg">
-            Guardar
+        <div class="row" style="grid-column:1/-1;">
+          <button type="submit" class="btn btn-primary">
+            <i data-lucide="check"></i>
+            <span>Guardar</span>
           </button>
-          <button type="button" id="cancel-btn"
-            class="hidden bg-slate-200 hover:bg-slate-300 text-slate-800 px-4 py-2 rounded-lg">
-            Cancelar
-          </button>
+          <button type="button" id="cancel-btn" class="btn btn-ghost is-hidden">Cancelar</button>
         </div>
       </form>
     </section>
 
     <!-- Listado -->
-    <section class="bg-white rounded-2xl shadow p-5">
-      <div class="flex items-center justify-between mb-4">
-        <h2 class="text-lg font-semibold text-slate-800">Pacientes registrados</h2>
-        <input id="search" placeholder="Buscar por cédula, nombre…"
-          class="w-72 rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+    <section class="card">
+      <div class="card__header">
+        <div>
+          <div class="card__title">Pacientes registrados</div>
+          <div class="card__sub" id="total-info">—</div>
+        </div>
+        <div class="input-group" style="max-width:320px; min-width:240px;">
+          <i data-lucide="search" class="input-group__icon"></i>
+          <input id="search" placeholder="Buscar por cédula, nombre o apellido…" class="input" />
+        </div>
       </div>
 
-      <div class="overflow-x-auto">
-        <table class="w-full text-sm">
-          <thead class="bg-slate-100 text-slate-600 text-left">
-            <tr>
-              <th class="px-3 py-2">Cédula</th>
-              <th class="px-3 py-2">Nombre</th>
-              <th class="px-3 py-2">Apellidos</th>
-              <th class="px-3 py-2">Teléfono</th>
-              <th data-role="staff" style="display:none" class="px-3 py-2 text-right">Acciones</th>
-            </tr>
-          </thead>
-          <tbody id="tbody" class="divide-y divide-slate-100"></tbody>
-        </table>
+      <div id="lista-container" class="card__body" style="padding:0;">
+        <div class="table-wrap" style="border:none; border-radius:0;">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Cédula</th>
+                <th>Nombre</th>
+                <th>Apellidos</th>
+                <th>Teléfono</th>
+                <th data-role="staff" style="display:none" class="text-right">Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="tbody"></tbody>
+          </table>
+        </div>
       </div>
     </section>
   </main>
 
   <script src="/static/js/app.js"></script>
   <script>
-    SGCM.requireAuth();
-
-    SGCM.applyMaskCedula(document.getElementById("cedula"));
-    SGCM.applyMaskTelefono(document.getElementById("telefono"));
-
     let currentUserRol = null;
 
     (async () => {
-      const me = await SGCM.me();
-      document.getElementById("user-info").textContent = `${me.nombre} (${me.rol})`;
-      currentUserRol = me.rol;
-      SGCM.applyNavPermissions(me.rol);
+      const me = await SGCM.mountShell({ active: 'pacientes', pageTitle: 'Pacientes' });
+      currentUserRol = me?.rol;
+      SGCM.applyMaskCedula(document.getElementById("cedula"));
+      SGCM.applyMaskTelefono(document.getElementById("telefono"));
       await cargar();
+      lucide.createIcons();
     })();
 
-    document.getElementById("logout").addEventListener("click", () => {
-      SGCM.logout();
-      window.location.href = "/login.html";
+    const formSection = document.getElementById("form-section");
+    const form        = document.getElementById("paciente-form");
+    const formTitle   = document.getElementById("form-title");
+    const cancelBtn   = document.getElementById("cancel-btn");
+    const errBox      = document.getElementById("form-error");
+
+    document.getElementById("btn-nuevo").addEventListener("click", () => {
+      resetForm();
+      formSection.classList.remove("is-hidden");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    });
+    document.getElementById("form-collapse").addEventListener("click", () => {
+      formSection.classList.add("is-hidden");
+      resetForm();
     });
 
-    const form = document.getElementById("paciente-form");
-    const formTitle = document.getElementById("form-title");
-    const cancelBtn = document.getElementById("cancel-btn");
-    const errBox = document.getElementById("form-error");
+    function setAlert(msg) {
+      errBox.querySelector("span").textContent = msg;
+      errBox.classList.remove("is-hidden");
+      lucide.createIcons();
+    }
 
     function resetForm() {
       form.reset();
       document.getElementById("paciente-id").value = "";
+      document.getElementById("cedula").disabled = false;
       formTitle.textContent = "Nuevo paciente";
-      cancelBtn.classList.add("hidden");
-      errBox.classList.add("hidden");
+      cancelBtn.classList.add("is-hidden");
+      errBox.classList.add("is-hidden");
     }
-
-    cancelBtn.addEventListener("click", resetForm);
+    cancelBtn.addEventListener("click", () => { resetForm(); formSection.classList.add("is-hidden"); });
 
     async function cargar(q = "") {
       const path = q ? `/pacientes?q=${encodeURIComponent(q)}` : "/pacientes";
       const data = await SGCM.api(path);
       const tbody = document.getElementById("tbody");
+      const totalInfo = document.getElementById("total-info");
       tbody.innerHTML = "";
+
       if (data.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="5" class="text-center text-slate-400 py-6">Sin resultados</td></tr>`;
+        const isStaff = currentUserRol === "admin" || currentUserRol === "secretaria";
+        const colspan = isStaff ? 5 : 4;
+        tbody.innerHTML = `
+          <tr><td colspan="${colspan}" style="padding:0;">
+            <div class="empty-state">
+              <div class="empty-state__icon"><i data-lucide="users-round"></i></div>
+              <div class="empty-state__title">${q ? "Sin coincidencias" : "Sin pacientes registrados"}</div>
+              <div class="empty-state__text">${q ? "Pruebe con otro término de búsqueda." : "Comience registrando el primer paciente."}</div>
+              ${!q && isStaff ? `<button class="btn btn-primary" onclick="document.getElementById('btn-nuevo').click()"><i data-lucide="user-plus"></i><span>Nuevo paciente</span></button>` : ""}
+            </div>
+          </td></tr>`;
+        totalInfo.textContent = q ? "0 resultados" : "Sin registros";
+        lucide.createIcons();
         return;
       }
+      totalInfo.textContent = `${data.length} paciente${data.length === 1 ? "" : "s"}`;
       const isStaff = currentUserRol === "admin" || currentUserRol === "secretaria";
       for (const p of data) {
         const tr = document.createElement("tr");
         tr.innerHTML = `
-          <td class="px-3 py-2 font-mono">${p.cedula}</td>
-          <td class="px-3 py-2">${p.nombre}</td>
-          <td class="px-3 py-2">${p.apellidos}</td>
-          <td class="px-3 py-2">${p.telefono}</td>
-          ${isStaff ? `<td class="px-3 py-2 text-right">
-            <button data-id="${p.id}" class="edit-btn text-blue-700 hover:underline mr-3">Editar</button>
-            <button data-id="${p.id}" class="del-btn text-red-600 hover:underline">Eliminar</button>
+          <td class="mono">${SGCM.formatCedula(p.cedula)}</td>
+          <td><strong>${p.nombre}</strong></td>
+          <td>${p.apellidos}</td>
+          <td>${SGCM.formatTelefono(p.telefono) || "—"}</td>
+          ${isStaff ? `<td class="text-right">
+            <span class="row-actions">
+              <button data-id="${p.id}" class="edit-btn icon-btn" title="Editar"><i data-lucide="pencil"></i></button>
+              <button data-id="${p.id}" class="del-btn icon-btn icon-btn--danger" title="Eliminar"><i data-lucide="trash-2"></i></button>
+            </span>
           </td>` : ""}
         `;
         tbody.appendChild(tr);
       }
-      tbody.querySelectorAll(".edit-btn").forEach((b) =>
-        b.addEventListener("click", () => editar(b.dataset.id))
-      );
-      tbody.querySelectorAll(".del-btn").forEach((b) =>
-        b.addEventListener("click", () => eliminar(b.dataset.id))
-      );
+      tbody.querySelectorAll(".edit-btn").forEach((b) => b.addEventListener("click", () => editar(b.dataset.id)));
+      tbody.querySelectorAll(".del-btn").forEach((b) => b.addEventListener("click", () => eliminar(b.dataset.id)));
+      lucide.createIcons();
     }
 
     async function editar(id) {
       const p = await SGCM.api(`/pacientes/${id}`);
+      formSection.classList.remove("is-hidden");
       document.getElementById("paciente-id").value = p.id;
       document.getElementById("cedula").value = SGCM.formatCedula(p.cedula);
       document.getElementById("cedula").disabled = true;
@@ -183,7 +214,7 @@
       document.getElementById("fecha_nacimiento").value = p.fecha_nacimiento || "";
       document.getElementById("direccion").value = p.direccion || "";
       formTitle.textContent = `Editar paciente #${p.id}`;
-      cancelBtn.classList.remove("hidden");
+      cancelBtn.classList.remove("is-hidden");
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
 
@@ -192,14 +223,12 @@
       try {
         await SGCM.api(`/pacientes/${id}`, { method: "DELETE" });
         await cargar(document.getElementById("search").value);
-      } catch (e) {
-        alert(e.message);
-      }
+      } catch (e) { alert(e.message); }
     }
 
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
-      errBox.classList.add("hidden");
+      errBox.classList.add("is-hidden");
       const id = document.getElementById("paciente-id").value;
       const payload = {
         cedula: document.getElementById("cedula").value,
@@ -211,7 +240,6 @@
       };
       try {
         if (id) {
-          // PATCH no acepta cedula
           const { cedula, ...rest } = payload;
           await SGCM.api(`/pacientes/${id}`, { method: "PATCH", body: JSON.stringify(rest) });
         } else {
@@ -219,11 +247,9 @@
         }
         document.getElementById("cedula").disabled = false;
         resetForm();
+        formSection.classList.add("is-hidden");
         await cargar();
-      } catch (e) {
-        errBox.textContent = e.message;
-        errBox.classList.remove("hidden");
-      }
+      } catch (e) { setAlert(e.message); }
     });
 
     let searchTimer;

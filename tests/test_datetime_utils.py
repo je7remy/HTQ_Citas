@@ -1,11 +1,12 @@
 """Tests del módulo central de fechas/horas (zona horaria RD)."""
-from datetime import datetime, timezone
+from datetime import datetime, time, timezone
 
 from app.core.datetime_utils import (
     TZ_DOMINICANA,
     ahora_local,
     formatear_fecha_emision,
     formatear_fecha_hora,
+    formatear_hora_12,
 )
 
 
@@ -57,3 +58,28 @@ def test_formatear_fecha_emision_sin_arg_usa_ahora_local():
     assert " a las " in txt
     # El año actual debe aparecer (validación laxa pero útil)
     assert str(ahora_local().year) in txt
+
+
+# ---------- formatear_hora_12 ----------
+def test_formatear_hora_12_medianoche():
+    assert formatear_hora_12(time(0, 0)) == "12:00 AM"
+
+
+def test_formatear_hora_12_mediodia():
+    assert formatear_hora_12(time(12, 0)) == "12:00 PM"
+
+
+def test_formatear_hora_12_pm_simple():
+    assert formatear_hora_12(time(13, 30)) == "1:30 PM"
+
+
+def test_formatear_hora_12_am_simple():
+    assert formatear_hora_12(time(8, 5)) == "8:05 AM"
+
+
+def test_formatear_hora_12_borde_superior():
+    assert formatear_hora_12(time(23, 45)) == "11:45 PM"
+
+
+def test_formatear_hora_12_none_devuelve_vacio():
+    assert formatear_hora_12(None) == ""

@@ -5,7 +5,7 @@ horario de verano). Este módulo centraliza la única fuente de "ahora" y los
 helpers de formato, de modo que reportes, auditoría y validaciones temporales
 coincidan con el reloj real del hospital.
 """
-from datetime import datetime
+from datetime import datetime, time
 from zoneinfo import ZoneInfo
 
 TZ_DOMINICANA = ZoneInfo("America/Santo_Domingo")
@@ -43,3 +43,18 @@ def formatear_fecha_emision(dt: datetime | None = None) -> str:
         f"{local.day} de {_MESES_ES[local.month]} de {local.year} "
         f"a las {local.strftime('%H:%M')}"
     )
+
+
+def formatear_hora_12(hora: time | None) -> str:
+    """Convierte un objeto time (24h) a '2:30 PM' (12h con AM/PM).
+
+    Solo presentacional — la BD y el backend siguen operando en 24h.
+    Devuelve '' si recibe None.
+    """
+    if hora is None:
+        return ""
+    h = hora.hour
+    m = str(hora.minute).zfill(2)
+    ampm = "PM" if h >= 12 else "AM"
+    h12 = 12 if h % 12 == 0 else h % 12
+    return f"{h12}:{m} {ampm}"

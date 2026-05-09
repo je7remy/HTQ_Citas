@@ -4,126 +4,114 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>SGCM — Mi Agenda</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="stylesheet" href="/static/css/sgcm.css" />
 </head>
-<body class="bg-slate-100 min-h-screen">
-  <header class="bg-blue-800 text-white shadow">
-    <div class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+<body>
+  <main id="page-main">
+    <div class="page-header">
       <div>
-        <h1 class="text-xl font-bold">SGCM — Mi Agenda</h1>
-        <p class="text-xs text-blue-200">CU-12 / CU-13 · Módulo médico</p>
+        <h1 id="titulo-agenda" class="page-header__title">Mi Agenda</h1>
+        <p class="page-header__sub" id="subtitulo-agenda">CU-12 / CU-13 · Atención de citas y registro de consultas.</p>
       </div>
-      <nav class="flex items-center gap-3 text-sm">
-        <a href="/calendar.html" class="hover:underline">Calendario</a>
-        <a href="/pacientes.html" class="hover:underline">Pacientes</a>
-        <a href="/medicos.html" class="hover:underline">Médicos</a>
-        <span data-role="medico" style="display:none"><a href="/agenda.html" class="font-semibold underline">Mi Agenda</a></span>
-        <span id="user-info" class="ml-3 text-blue-200"></span>
-        <button id="logout" class="bg-blue-900 hover:bg-blue-950 px-3 py-1 rounded">Salir</button>
-      </nav>
-    </div>
-  </header>
-
-  <main class="max-w-4xl mx-auto p-6 space-y-6">
-    <!-- Selector de fecha -->
-    <section class="bg-white rounded-2xl shadow p-5">
-      <div class="flex flex-wrap items-center gap-4">
-        <div>
-          <label class="block text-sm text-slate-600 mb-1">Fecha de agenda</label>
-          <input type="date" id="fecha-agenda"
-            class="rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+      <div class="page-header__actions">
+        <div class="input-group" style="min-width:200px;">
+          <i data-lucide="calendar" class="input-group__icon"></i>
+          <input type="date" id="fecha-agenda" class="input" />
         </div>
-        <button id="btn-hoy"
-          class="mt-5 bg-slate-200 hover:bg-slate-300 text-slate-800 text-sm px-3 py-2 rounded-lg">
-          Hoy
+        <button id="btn-hoy" class="btn btn-ghost">
+          <i data-lucide="calendar-check"></i>
+          <span>Hoy</span>
         </button>
       </div>
-    </section>
+    </div>
 
-    <!-- Lista de citas del día -->
-    <section class="bg-white rounded-2xl shadow p-5">
-      <h2 id="titulo-agenda" class="text-lg font-semibold text-slate-800 mb-4">Citas del día</h2>
-      <div id="agenda-error" class="hidden mb-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded p-2"></div>
-      <div id="agenda-lista" class="space-y-3"></div>
-    </section>
+    <div id="agenda-error" class="alert alert--danger is-hidden" style="margin-bottom:14px;">
+      <i data-lucide="alert-circle"></i>
+      <span></span>
+    </div>
+
+    <div id="agenda-lista" class="stack"></div>
   </main>
 
   <!-- ══════════════ MODAL: REGISTRAR CONSULTA ══════════════ -->
-  <div id="modal-consulta" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-    <div class="bg-white rounded-2xl shadow-xl w-full max-w-md">
-      <div class="flex items-center justify-between px-6 py-4 border-b border-slate-200">
-        <h2 class="text-lg font-semibold text-slate-800">Registrar consulta</h2>
-        <button id="rc-cerrar" class="text-slate-400 hover:text-slate-600 text-xl font-bold">&times;</button>
+  <div id="modal-consulta" class="modal-backdrop is-hidden">
+    <div class="modal">
+      <div class="modal__header">
+        <h2 class="modal__title">Registrar consulta</h2>
+        <button type="button" class="modal__close" id="rc-cerrar"><i data-lucide="x"></i></button>
       </div>
-      <form id="form-consulta" class="p-6 space-y-4">
+      <form id="form-consulta" class="modal__body stack">
         <input type="hidden" id="rc-cita-id" />
-        <p class="text-sm text-slate-600">Cita: <strong id="rc-cita-info"></strong></p>
-        <div>
-          <label class="block text-sm text-slate-600 mb-1">Observaciones *</label>
-          <textarea id="rc-observaciones" required rows="4"
-            placeholder="Diagnóstico, tratamiento indicado, notas…"
-            class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm resize-none"></textarea>
+        <div class="alert alert--info">
+          <i data-lucide="info"></i>
+          <span><strong>Cita:</strong> <span id="rc-cita-info"></span></span>
         </div>
-        <div id="rc-error" class="hidden text-sm text-red-700 bg-red-50 border border-red-200 rounded p-2"></div>
-        <div class="flex gap-2">
-          <button type="submit"
-            class="flex-1 bg-green-700 hover:bg-green-800 text-white font-semibold py-2 rounded-lg">
-            Marcar como atendida
-          </button>
-          <button type="button" id="rc-cancelar"
-            class="bg-slate-200 hover:bg-slate-300 text-slate-800 px-4 py-2 rounded-lg">
-            Cancelar
-          </button>
+        <div class="field">
+          <label class="field__label">Observaciones *</label>
+          <textarea id="rc-observaciones" required rows="5"
+            placeholder="Diagnóstico, tratamiento indicado, notas…"
+            class="textarea"></textarea>
+        </div>
+        <div id="rc-error" class="alert alert--danger is-hidden">
+          <i data-lucide="alert-circle"></i>
+          <span></span>
         </div>
       </form>
+      <div class="modal__footer">
+        <button type="button" id="rc-cancelar" class="btn btn-ghost">Cancelar</button>
+        <button type="submit" form="form-consulta" class="btn btn-success">
+          <i data-lucide="check-circle"></i>
+          <span>Marcar como atendida</span>
+        </button>
+      </div>
     </div>
   </div>
 
   <script src="/static/js/app.js"></script>
   <script>
-    SGCM.requireAuth();
+    function setAlert(box, msg) {
+      box.querySelector("span").textContent = msg;
+      box.classList.remove("is-hidden");
+      lucide.createIcons();
+    }
 
-    const DIAS = ["domingo","lunes","martes","miércoles","jueves","viernes","sábado"];
+    function fechaLarga(dateStr) {
+      const d = new Date(dateStr + "T12:00:00");
+      const txt = d.toLocaleDateString("es-DO", {
+        weekday: "long", year: "numeric", month: "long", day: "numeric"
+      });
+      return txt.charAt(0).toUpperCase() + txt.slice(1);
+    }
 
     (async () => {
-      const me = await SGCM.me();
-      document.getElementById("user-info").textContent = `${me.nombre} (${me.rol})`;
-      SGCM.applyNavPermissions(me.rol);
+      const me = await SGCM.mountShell({ active: 'agenda', pageTitle: 'Mi Agenda' });
+      if (!me) return;
       if (me.rol !== "medico" && me.rol !== "admin") {
-        mostrarError("Esta pantalla es solo para médicos.");
+        setAlert(document.getElementById("agenda-error"), "Esta pantalla es solo para médicos.");
         return;
       }
       const hoy = new Date().toISOString().slice(0, 10);
       document.getElementById("fecha-agenda").value = hoy;
       await cargarAgenda(hoy);
+      lucide.createIcons();
     })();
 
-    document.getElementById("logout").addEventListener("click", () => {
-      SGCM.logout();
-      window.location.href = "/login.html";
-    });
-
-    document.getElementById("fecha-agenda").addEventListener("change", (e) => {
-      cargarAgenda(e.target.value);
-    });
-
+    document.getElementById("fecha-agenda").addEventListener("change", (e) => cargarAgenda(e.target.value));
     document.getElementById("btn-hoy").addEventListener("click", () => {
       const hoy = new Date().toISOString().slice(0, 10);
       document.getElementById("fecha-agenda").value = hoy;
       cargarAgenda(hoy);
     });
 
-    function mostrarError(msg) {
-      const box = document.getElementById("agenda-error");
-      box.textContent = msg;
-      box.classList.remove("hidden");
-    }
-
     async function cargarAgenda(fecha) {
-      document.getElementById("agenda-error").classList.add("hidden");
-      const d = new Date(fecha + "T12:00:00");
-      document.getElementById("titulo-agenda").textContent =
-        `Citas del ${d.toLocaleDateString("es-DO", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}`;
+      document.getElementById("agenda-error").classList.add("is-hidden");
+      document.getElementById("titulo-agenda").textContent = fechaLarga(fecha);
+      document.getElementById("subtitulo-agenda").textContent = "Citas asignadas para el día seleccionado.";
 
       try {
         const data = await SGCM.api(`/consultas/agenda?fecha=${fecha}`);
@@ -131,7 +119,15 @@
         lista.innerHTML = "";
 
         if (data.length === 0) {
-          lista.innerHTML = `<p class="text-slate-400 text-sm text-center py-6">Sin citas para este día.</p>`;
+          lista.innerHTML = `
+            <div class="card">
+              <div class="empty-state">
+                <div class="empty-state__icon"><i data-lucide="calendar-x"></i></div>
+                <div class="empty-state__title">Sin citas para este día</div>
+                <div class="empty-state__text">No tiene pacientes asignados para la fecha seleccionada.</div>
+              </div>
+            </div>`;
+          lucide.createIcons();
           return;
         }
 
@@ -139,54 +135,52 @@
 
         for (const cita of data) {
           const card = document.createElement("div");
-          card.className = "flex items-center justify-between bg-slate-50 rounded-xl px-4 py-3 border border-slate-200";
+          card.className = "appt-card";
 
-          const estadoBadge = cita.estado === "pendiente"
-            ? "bg-blue-100 text-blue-800"
-            : cita.estado === "atendida"
-            ? "bg-green-100 text-green-800"
-            : "bg-gray-100 text-gray-600";
+          const estadoBadge = cita.estado === "pendiente" ? "badge--blue"
+                            : cita.estado === "atendida"  ? "badge--green"
+                            : "badge--gray";
 
-          // La hora de la cita ya llegó si ahora >= fecha+hora de la cita
           const fechaHoraCita = new Date(cita.fecha + "T" + cita.hora);
           const puedeAtender = cita.estado === "pendiente" && ahora >= fechaHoraCita;
-          const horaFormato = cita.hora.slice(0, 5);
-          const fechaFormato = fechaHoraCita.toLocaleDateString("es-DO", {
-            day: "2-digit", month: "2-digit", year: "numeric"
-          });
+          const hora12 = SGCM.formatHora12(cita.hora);
+          const [horaNum, ampm] = hora12.split(" ");
+          const fechaCorta = fechaHoraCita.toLocaleDateString("es-DO", { day: "2-digit", month: "2-digit", year: "numeric" });
 
           let accionHTML;
           if (cita.estado === "pendiente") {
             if (puedeAtender) {
-              accionHTML = `<button data-id="${cita.id}" data-info="Paciente #${cita.id_paciente} · ${horaFormato}"
-                  class="atender-btn bg-green-700 hover:bg-green-800 text-white text-sm font-semibold px-3 py-1.5 rounded-lg">
-                  Registrar consulta
+              accionHTML = `
+                <button data-id="${cita.id}" data-info="Paciente #${cita.id_paciente} · ${hora12}"
+                  class="atender-btn btn btn-success btn-sm">
+                  <i data-lucide="stethoscope"></i>
+                  <span>Registrar consulta</span>
                 </button>`;
             } else {
-              accionHTML = `<div class="text-right">
-                <button disabled
-                  class="bg-slate-300 text-slate-500 cursor-not-allowed text-sm font-semibold px-3 py-1.5 rounded-lg">
-                  Registrar consulta
+              accionHTML = `
+                <button disabled class="btn btn-ghost btn-sm" style="cursor:not-allowed;">
+                  <i data-lucide="lock"></i>
+                  <span>Registrar consulta</span>
                 </button>
-                <p class="text-xs text-slate-400 mt-1">Disponible a partir de ${fechaFormato} ${horaFormato}</p>
-              </div>`;
+                <span class="text-soft" style="font-size:11.5px;">Disponible desde ${fechaCorta} ${hora12}</span>`;
             }
           } else {
-            accionHTML = `<span class="text-xs text-slate-400">Finalizada</span>`;
+            accionHTML = `<span class="badge badge--gray"><i data-lucide="check" style="width:12px;height:12px;"></i> Finalizada</span>`;
           }
 
           card.innerHTML = `
-            <div class="space-y-1">
-              <div class="flex items-center gap-2">
-                <span class="font-semibold text-slate-800">${horaFormato}</span>
-                <span class="px-2 py-0.5 rounded text-xs font-semibold ${estadoBadge}">${cita.estado}</span>
-              </div>
-              <div class="text-sm text-slate-600">
-                Paciente #${cita.id_paciente}
-                ${cita.motivo ? `· <span class="italic">${cita.motivo}</span>` : ""}
-              </div>
+            <div class="appt-card__time">
+              <div class="appt-card__time-h">${horaNum}</div>
+              <div class="appt-card__time-ampm">${ampm}</div>
             </div>
-            <div>${accionHTML}</div>
+            <div class="appt-card__body">
+              <div class="row" style="align-items:center; gap:8px;">
+                <span class="appt-card__patient">Paciente #${cita.id_paciente}</span>
+                <span class="badge ${estadoBadge}">${cita.estado}</span>
+              </div>
+              ${cita.motivo ? `<div class="appt-card__motivo"><i data-lucide="message-square" style="display:inline-block; width:13px; height:13px; vertical-align:-2px; margin-right:4px;"></i>${cita.motivo}</div>` : ""}
+            </div>
+            <div class="appt-card__actions">${accionHTML}</div>
           `;
           lista.appendChild(card);
         }
@@ -194,12 +188,12 @@
         lista.querySelectorAll(".atender-btn").forEach((b) =>
           b.addEventListener("click", () => abrirModalConsulta(b.dataset.id, b.dataset.info))
         );
+        lucide.createIcons();
       } catch (err) {
-        mostrarError(err.message);
+        setAlert(document.getElementById("agenda-error"), err.message);
       }
     }
 
-    // ══════════════ MODAL REGISTRAR CONSULTA ══════════════
     document.getElementById("rc-cerrar").addEventListener("click", cerrarModalConsulta);
     document.getElementById("rc-cancelar").addEventListener("click", cerrarModalConsulta);
 
@@ -207,18 +201,19 @@
       document.getElementById("rc-cita-id").value = citaId;
       document.getElementById("rc-cita-info").textContent = citaInfo;
       document.getElementById("rc-observaciones").value = "";
-      document.getElementById("rc-error").classList.add("hidden");
-      document.getElementById("modal-consulta").classList.remove("hidden");
+      document.getElementById("rc-error").classList.add("is-hidden");
+      document.getElementById("modal-consulta").classList.remove("is-hidden");
+      lucide.createIcons();
     }
 
     function cerrarModalConsulta() {
-      document.getElementById("modal-consulta").classList.add("hidden");
+      document.getElementById("modal-consulta").classList.add("is-hidden");
     }
 
     document.getElementById("form-consulta").addEventListener("submit", async (e) => {
       e.preventDefault();
       const errBox = document.getElementById("rc-error");
-      errBox.classList.add("hidden");
+      errBox.classList.add("is-hidden");
       try {
         await SGCM.api("/consultas", {
           method: "POST",
@@ -229,10 +224,7 @@
         });
         cerrarModalConsulta();
         await cargarAgenda(document.getElementById("fecha-agenda").value);
-      } catch (err) {
-        errBox.textContent = err.message;
-        errBox.classList.remove("hidden");
-      }
+      } catch (err) { setAlert(errBox, err.message); }
     });
   </script>
 </body>

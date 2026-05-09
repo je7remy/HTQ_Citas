@@ -4,34 +4,34 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>SGCM — Auditoría</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="stylesheet" href="/static/css/sgcm.css" />
 </head>
-<body class="bg-slate-100 min-h-screen">
-  <header class="bg-blue-800 text-white shadow">
-    <div class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+<body>
+  <main id="page-main">
+    <div class="page-header">
       <div>
-        <h1 class="text-xl font-bold">SGCM — Auditoría</h1>
-        <p class="text-xs text-blue-200">CU-15 · Solo administradores</p>
+        <h1 class="page-header__title">Auditoría del sistema</h1>
+        <p class="page-header__sub">CU-15 · Registro inmutable de acciones realizadas en el SGCM.</p>
       </div>
-      <nav class="flex items-center gap-3 text-sm">
-        <a href="/calendar.html" class="hover:underline">Calendario</a>
-        <a href="/pacientes.html" class="hover:underline">Pacientes</a>
-        <a href="/medicos.html" class="hover:underline">Médicos</a>
-        <span data-role="admin" style="display:none"><a href="/usuarios.html" class="hover:underline">Usuarios</a></span>
-        <span data-role="admin" style="display:none"><a href="/auditoria.html" class="font-semibold underline">Auditoría</a></span>
-        <span id="user-info" class="ml-3 text-blue-200"></span>
-        <button id="logout" class="bg-blue-900 hover:bg-blue-950 px-3 py-1 rounded">Salir</button>
-      </nav>
     </div>
-  </header>
 
-  <main class="max-w-7xl mx-auto p-6 space-y-6">
-    <section class="bg-white rounded-2xl shadow p-5">
-      <h2 class="text-lg font-semibold text-slate-800 mb-4">Filtros</h2>
-      <form id="filter-form" class="grid grid-cols-1 md:grid-cols-5 gap-3">
+    <!-- Filtros -->
+    <section class="card" style="margin-bottom:18px;">
+      <div class="card__header">
         <div>
-          <label class="block text-xs text-slate-600">Acción</label>
-          <select id="accion" class="mt-1 w-full rounded-lg border border-slate-300 px-2 py-2 text-sm">
+          <div class="card__title">Filtros</div>
+          <div class="card__sub">Acote la búsqueda por acción, tabla o rango de fechas.</div>
+        </div>
+      </div>
+      <form id="filter-form" class="card__body grid-4" style="align-items:end;">
+        <div class="field">
+          <label class="field__label">Acción</label>
+          <select id="accion" class="select">
             <option value="">Todas</option>
             <option>CREATE</option>
             <option>UPDATE</option>
@@ -39,9 +39,9 @@
             <option>LOGIN</option>
           </select>
         </div>
-        <div>
-          <label class="block text-xs text-slate-600">Tabla</label>
-          <select id="tabla" class="mt-1 w-full rounded-lg border border-slate-300 px-2 py-2 text-sm">
+        <div class="field">
+          <label class="field__label">Tabla</label>
+          <select id="tabla" class="select">
             <option value="">Todas</option>
             <option>usuarios</option>
             <option>pacientes</option>
@@ -51,58 +51,68 @@
             <option>consultas</option>
           </select>
         </div>
-        <div>
-          <label class="block text-xs text-slate-600">Desde</label>
-          <input type="date" id="desde" class="mt-1 w-full rounded-lg border border-slate-300 px-2 py-2 text-sm" />
+        <div class="field">
+          <label class="field__label">Desde</label>
+          <input type="date" id="desde" class="input" />
         </div>
-        <div>
-          <label class="block text-xs text-slate-600">Hasta</label>
-          <input type="date" id="hasta" class="mt-1 w-full rounded-lg border border-slate-300 px-2 py-2 text-sm" />
+        <div class="field">
+          <label class="field__label">Hasta</label>
+          <input type="date" id="hasta" class="input" />
         </div>
-        <div class="flex items-end gap-2">
-          <button class="flex-1 bg-blue-700 hover:bg-blue-800 text-white text-sm font-semibold py-2 rounded-lg">
-            Filtrar
+        <div class="row" style="grid-column:1/-1;">
+          <button class="btn btn-primary">
+            <i data-lucide="filter"></i>
+            <span>Filtrar</span>
           </button>
-          <button type="button" id="clear-btn"
-            class="bg-slate-200 hover:bg-slate-300 text-slate-800 text-sm py-2 px-3 rounded-lg">
-            Limpiar
+          <button type="button" id="clear-btn" class="btn btn-ghost">
+            <i data-lucide="x"></i>
+            <span>Limpiar</span>
           </button>
         </div>
       </form>
     </section>
 
-    <section class="bg-white rounded-2xl shadow p-5">
-      <div class="flex items-center justify-between mb-3">
-        <h2 class="text-lg font-semibold text-slate-800">Registros</h2>
-        <span id="total" class="text-sm text-slate-500"></span>
+    <section class="card">
+      <div class="card__header">
+        <div>
+          <div class="card__title">Registros</div>
+          <div class="card__sub" id="total">—</div>
+        </div>
       </div>
 
-      <div id="error-box" class="hidden mb-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded p-2"></div>
-
-      <div class="overflow-x-auto">
-        <table class="w-full text-sm">
-          <thead class="bg-slate-100 text-slate-600 text-left">
-            <tr>
-              <th class="px-3 py-2">Fecha/Hora</th>
-              <th class="px-3 py-2">Usuario</th>
-              <th class="px-3 py-2">Acción</th>
-              <th class="px-3 py-2">Tabla</th>
-              <th class="px-3 py-2">Registro</th>
-              <th class="px-3 py-2">Detalle</th>
-              <th class="px-3 py-2">IP</th>
-            </tr>
-          </thead>
-          <tbody id="tbody" class="divide-y divide-slate-100"></tbody>
-        </table>
+      <div id="error-box" class="alert alert--danger is-hidden" style="margin:14px 24px 0;">
+        <i data-lucide="alert-circle"></i>
+        <span></span>
       </div>
 
-      <div class="mt-4 flex items-center justify-between text-sm">
-        <button id="prev-btn" class="bg-slate-200 hover:bg-slate-300 px-3 py-1 rounded disabled:opacity-50">
-          ← Anterior
+      <div class="card__body" style="padding:0;">
+        <div class="table-wrap" style="border:none; border-radius:0;">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Fecha / Hora</th>
+                <th>Usuario</th>
+                <th>Acción</th>
+                <th>Tabla</th>
+                <th>Registro</th>
+                <th>Detalle</th>
+                <th>IP</th>
+              </tr>
+            </thead>
+            <tbody id="tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card__body flex-spread" style="border-top:1px solid var(--color-border-soft);">
+        <button id="prev-btn" class="btn btn-ghost btn-sm">
+          <i data-lucide="chevron-left"></i>
+          <span>Anterior</span>
         </button>
-        <span id="page-info" class="text-slate-500"></span>
-        <button id="next-btn" class="bg-slate-200 hover:bg-slate-300 px-3 py-1 rounded disabled:opacity-50">
-          Siguiente →
+        <span id="page-info" class="text-muted" style="font-size:12.5px;"></span>
+        <button id="next-btn" class="btn btn-ghost btn-sm">
+          <span>Siguiente</span>
+          <i data-lucide="chevron-right"></i>
         </button>
       </div>
     </section>
@@ -110,40 +120,33 @@
 
   <script src="/static/js/app.js"></script>
   <script>
-    SGCM.requireAuth();
-
     const LIMIT = 25;
     let offset = 0;
     let total = 0;
 
     const COLOR_ACCION = {
-      CREATE: "bg-green-100 text-green-800",
-      UPDATE: "bg-blue-100 text-blue-800",
-      DELETE: "bg-red-100 text-red-800",
-      LOGIN:  "bg-purple-100 text-purple-800",
+      CREATE: "badge--green",
+      UPDATE: "badge--blue",
+      DELETE: "badge--red",
+      LOGIN:  "badge--purple",
     };
 
-    (async () => {
-      try {
-        const me = await SGCM.me();
-        document.getElementById("user-info").textContent = `${me.nombre} (${me.rol})`;
-        SGCM.applyNavPermissions(me.rol);
-        if (me.rol !== "admin") {
-          showError("Esta pantalla es solo para administradores.");
-        }
-      } catch (e) { /* requireAuth ya redirige */ }
-    })();
-
-    document.getElementById("logout").addEventListener("click", () => {
-      SGCM.logout();
-      window.location.href = "/login.html";
-    });
-
-    function showError(msg) {
-      const box = document.getElementById("error-box");
-      box.textContent = msg;
-      box.classList.remove("hidden");
+    function setAlert(box, msg) {
+      box.querySelector("span").textContent = msg;
+      box.classList.remove("is-hidden");
+      lucide.createIcons();
     }
+
+    (async () => {
+      const me = await SGCM.mountShell({ active: 'auditoria', pageTitle: 'Auditoría' });
+      if (!me) return;
+      if (me.rol !== "admin") {
+        setAlert(document.getElementById("error-box"), "Esta pantalla es solo para administradores.");
+        return;
+      }
+      await cargar();
+      lucide.createIcons();
+    })();
 
     function buildQuery() {
       const params = new URLSearchParams();
@@ -161,32 +164,35 @@
     }
 
     async function cargar() {
-      document.getElementById("error-box").classList.add("hidden");
+      document.getElementById("error-box").classList.add("is-hidden");
       try {
         const data = await SGCM.api(`/auditoria?${buildQuery()}`);
         total = data.total;
-        document.getElementById("total").textContent = `${total} registro(s)`;
+        document.getElementById("total").textContent = `${total} registro${total === 1 ? "" : "s"}`;
 
         const tbody = document.getElementById("tbody");
         tbody.innerHTML = "";
         if (data.items.length === 0) {
-          tbody.innerHTML = `<tr><td colspan="7" class="text-center text-slate-400 py-6">Sin registros</td></tr>`;
+          tbody.innerHTML = `<tr><td colspan="7" style="padding:0;">
+            <div class="empty-state">
+              <div class="empty-state__icon"><i data-lucide="file-search"></i></div>
+              <div class="empty-state__title">Sin registros</div>
+              <div class="empty-state__text">Ajuste los filtros o amplíe el rango de fechas.</div>
+            </div>
+          </td></tr>`;
         } else {
           for (const r of data.items) {
             const tr = document.createElement("tr");
             const fecha = SGCM.formatFechaHora(r.fecha_hora);
-            const colorClass = COLOR_ACCION[r.accion] || "bg-slate-100 text-slate-800";
+            const colorClass = COLOR_ACCION[r.accion] || "badge--gray";
             tr.innerHTML = `
-              <td class="px-3 py-2 whitespace-nowrap">${fecha}</td>
-              <td class="px-3 py-2">${r.id_usuario ?? "—"}</td>
-              <td class="px-3 py-2">
-                <span class="px-2 py-0.5 rounded text-xs font-semibold ${colorClass}">${r.accion}</span>
-              </td>
-              <td class="px-3 py-2 font-mono text-xs">${r.tabla_afectada}</td>
-              <td class="px-3 py-2">${r.id_registro ?? "—"}</td>
-              <td class="px-3 py-2 text-slate-600 max-w-md truncate" title="${r.detalle ?? ""}">${r.detalle ?? "—"}</td>
-              <td class="px-3 py-2 font-mono text-xs">${r.ip_origen ?? "—"}</td>
-            `;
+              <td class="mono" style="white-space:nowrap;">${fecha}</td>
+              <td>${r.id_usuario ?? "—"}</td>
+              <td><span class="badge ${colorClass}">${r.accion}</span></td>
+              <td class="mono">${r.tabla_afectada}</td>
+              <td class="mono">${r.id_registro ?? "—"}</td>
+              <td class="text-muted" style="max-width:340px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${(r.detalle ?? "").replace(/"/g, '&quot;')}">${r.detalle ?? "—"}</td>
+              <td class="mono text-muted">${r.ip_origen ?? "—"}</td>`;
             tbody.appendChild(tr);
           }
         }
@@ -196,8 +202,9 @@
         document.getElementById("page-info").textContent = `Página ${pagina} de ${totalPaginas}`;
         document.getElementById("prev-btn").disabled = offset === 0;
         document.getElementById("next-btn").disabled = offset + LIMIT >= total;
+        lucide.createIcons();
       } catch (e) {
-        showError(e.message);
+        setAlert(document.getElementById("error-box"), e.message);
       }
     }
 
@@ -220,8 +227,6 @@
     document.getElementById("next-btn").addEventListener("click", () => {
       if (offset + LIMIT < total) { offset += LIMIT; cargar(); }
     });
-
-    cargar();
   </script>
 </body>
 </html>
