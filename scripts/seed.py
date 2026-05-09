@@ -42,8 +42,8 @@ def seed() -> None:
 
         medico = Medico(
             id_usuario=medico_user.id,
-            nombre="Dr. Juan Pérez",
-            especialidad="Traumatología",
+            nombre="Juan Pérez",
+            especialidad="Ortopedia y Traumatología",
             telefono="809-555-0100",
         )
         s.add(medico)

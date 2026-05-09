@@ -1,8 +1,11 @@
 """CRUD de médicos y gestión de horarios."""
+import re
+
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlmodel import Session, select
 
 from app.api.deps import require_roles
+from app.core.especialidades import ESPECIALIDADES_HTQPJB
 from app.core.security import hash_password
 from app.db.session import get_session
 from app.models import AccionAuditoria, Horario, Medico, RolUsuario, Usuario
@@ -21,6 +24,28 @@ router = APIRouter(prefix="/medicos", tags=["medicos"])
 _admin = require_roles(RolUsuario.admin)
 _any = require_roles(RolUsuario.secretaria, RolUsuario.admin, RolUsuario.medico)
 
+_MSG_ESPECIALIDAD_INVALIDA = (
+    "Especialidad inválida. Use uno de los valores oficiales del hospital."
+)
+
+_PREFIJO_DR = re.compile(r"^(dra?\.?\s+|doctor[a]?\s+)", re.IGNORECASE)
+
+
+def _strip_doctor_prefix(nombre: str) -> str:
+    """Elimina prefijo Dr./Dra./Doctor/Doctora al inicio del nombre."""
+    return _PREFIJO_DR.sub("", nombre).strip()
+
+
+def _validar_especialidad(especialidad: str) -> None:
+    if especialidad not in ESPECIALIDADES_HTQPJB:
+        raise HTTPException(422, _MSG_ESPECIALIDAD_INVALIDA)
+
+
+# ---------- Especialidades ----------
+@router.get("/especialidades")
+def listar_especialidades(_: Usuario = Depends(_any)):
+    return {"especialidades": ESPECIALIDADES_HTQPJB}
+
 
 # ---------- Médicos ----------
 @router.get("", response_model=list[MedicoRead])
@@ -35,6 +60,7 @@ def crear(
     session: Session = Depends(get_session),
     actor: Usuario = Depends(_admin),
 ):
+    _validar_especialidad(payload.especialidad)
     if payload.id_usuario is not None:
         u = session.get(Usuario, payload.id_usuario)
         if not u or u.rol != RolUsuario.medico:
@@ -50,7 +76,9 @@ def crear(
                 422,
                 "El usuario seleccionado no es válido o ya está vinculado a otro perfil de médico.",
             )
-    m = Medico(**payload.model_dump())
+    data = payload.model_dump()
+    data["nombre"] = _strip_doctor_prefix(data["nombre"])
+    m = Medico(**data)
     session.add(m)
     session.flush()
     registrar_auditoria(
@@ -74,6 +102,7 @@ def crear_con_usuario(
     session: Session = Depends(get_session),
     actor: Usuario = Depends(_admin),
 ):
+    _validar_especialidad(payload.medico.especialidad)
     existing = session.exec(select(Usuario).where(Usuario.email == payload.usuario.email)).first()
     if existing:
         raise HTTPException(409, "El email ya está registrado.")
@@ -89,7 +118,7 @@ def crear_con_usuario(
 
     m = Medico(
         id_usuario=u.id,
-        nombre=payload.medico.nombre,
+        nombre=_strip_doctor_prefix(payload.medico.nombre),
         especialidad=payload.medico.especialidad,
         telefono=payload.medico.telefono,
     )
@@ -122,6 +151,10 @@ def actualizar(
     if not m:
         raise HTTPException(404, "Médico no encontrado.")
     data = payload.model_dump(exclude_unset=True)
+    if "especialidad" in data:
+        _validar_especialidad(data["especialidad"])
+    if "nombre" in data:
+        data["nombre"] = _strip_doctor_prefix(data["nombre"])
     for k, v in data.items():
         setattr(m, k, v)
     session.add(m)

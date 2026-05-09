@@ -7,6 +7,5 @@ __pycache__
 .gitignore
 .pytest_cache
 *.md
-tests/
 .vscode
 .idea

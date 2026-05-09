@@ -48,7 +48,7 @@ def test_rbac_admin_si_puede_crear_medico(client, auth_as):
     auth_as("admin")
     res = client.post(
         "/api/v1/medicos",
-        json={"nombre": "Dr. Y", "especialidad": "Pediatría"},
+        json={"nombre": "Dr. Y", "especialidad": "Cirugía General"},
     )
     assert res.status_code == 201
-    assert res.json()["nombre"] == "Dr. Y"
+    assert res.json()["nombre"] == "Y"

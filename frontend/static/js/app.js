@@ -125,8 +125,14 @@ const SGCM = (() => {
     });
   }
 
+  function formatMedicoNombre(nombre) {
+    if (!nombre) return '';
+    return 'Dr. ' + nombre;
+  }
+
   return {
     login, logout, requireAuth, api, me, getToken, applyNavPermissions,
     applyMaskCedula, applyMaskTelefono, formatCedula, formatTelefono, stripDigits,
+    formatMedicoNombre,
   };
 })();

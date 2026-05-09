@@ -72,7 +72,7 @@ def seed_users_fixture(session: Session):
     medico = Medico(
         id_usuario=med_user.id,
         nombre="Dr. Test",
-        especialidad="Traumatología",
+        especialidad="Ortopedia y Traumatología",
     )
     session.add(medico)
     session.flush()

@@ -232,9 +232,9 @@
       const selCita = document.getElementById("nc-medico");
       const selReporte = document.getElementById("rep-medico-sel");
       medicosList.forEach((m) => {
-        const opt = `<option value="${m.id}">${m.nombre} — ${m.especialidad}</option>`;
+        const opt = `<option value="${m.id}">${SGCM.formatMedicoNombre(m.nombre)} — ${m.especialidad}</option>`;
         selCita.insertAdjacentHTML("beforeend", opt);
-        selReporte.insertAdjacentHTML("beforeend", `<option value="${m.id}">${m.nombre}</option>`);
+        selReporte.insertAdjacentHTML("beforeend", `<option value="${m.id}">${SGCM.formatMedicoNombre(m.nombre)}</option>`);
       });
     }
 

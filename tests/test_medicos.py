@@ -1,8 +1,12 @@
 """Tests Mejora 1: vinculación usuario↔médico desde filtro y validación backend."""
 from sqlmodel import select
 
+from app.core.especialidades import ESPECIALIDADES_HTQPJB
 from app.models import RolUsuario, Usuario
 from tests.conftest import TEST_PASSWORD
+
+_ESP_VALIDA = ESPECIALIDADES_HTQPJB[0]   # "Ortopedia y Traumatología"
+_ESP_VALIDA2 = ESPECIALIDADES_HTQPJB[1]  # "Cirugía General"
 
 
 def _crear_usuario_medico(client, email="dr.nuevo@test.do", nombre="Dr. Nuevo"):
@@ -44,7 +48,7 @@ def test_crear_medico_con_id_usuario_valido(client, auth_as, seed_users):
 
     res = client.post(
         "/api/v1/medicos",
-        json={"id_usuario": nuevo["id"], "nombre": "Dr. Cardio", "especialidad": "Cardiología"},
+        json={"id_usuario": nuevo["id"], "nombre": "Carlos Familia", "especialidad": _ESP_VALIDA},
     )
     assert res.status_code == 201, res.text
     assert res.json()["id_usuario"] == nuevo["id"]
@@ -58,7 +62,7 @@ def test_crear_medico_con_id_usuario_ya_vinculado_retorna_422(client, auth_as, s
         json={
             "id_usuario": seed_users["medico_user"].id,
             "nombre": "Duplicado",
-            "especialidad": "Pediatría",
+            "especialidad": _ESP_VALIDA,
         },
     )
     assert res.status_code == 422, res.text
@@ -73,7 +77,7 @@ def test_crear_medico_con_id_usuario_no_medico_retorna_422(client, auth_as, seed
         json={
             "id_usuario": seed_users["admin"].id,
             "nombre": "Error Test",
-            "especialidad": "Pediatría",
+            "especialidad": _ESP_VALIDA,
         },
     )
     assert res.status_code == 422, res.text
@@ -95,15 +99,15 @@ def test_crear_medico_con_usuario_exito(client, auth_as, session):
             },
             "medico": {
                 "nombre": "Dr. Combinado",
-                "especialidad": "Neurología",
+                "especialidad": "Neurocirugía",
                 "telefono": "8090001234",
             },
         },
     )
     assert res.status_code == 201, res.text
     body = res.json()
-    assert body["nombre"] == "Dr. Combinado"
-    assert body["especialidad"] == "Neurología"
+    assert body["nombre"] == "Combinado"
+    assert body["especialidad"] == "Neurocirugía"
     assert body["id_usuario"] is not None
 
     u = session.exec(select(Usuario).where(Usuario.email == "drcombinado@test.do")).first()
@@ -148,9 +152,78 @@ def test_crear_medico_con_usuario_email_duplicado(client, auth_as, seed_users):
             },
             "medico": {
                 "nombre": "Duplicado",
-                "especialidad": "Cardiología",
+                "especialidad": _ESP_VALIDA,
             },
         },
     )
     assert res.status_code == 409, res.text
     assert "registrado" in res.json()["detail"]
+
+
+# ── GET /medicos/especialidades ──────────────────────────────────────────────
+
+def test_get_especialidades_retorna_lista_completa(client, auth_as, seed_users):
+    """GET /medicos/especialidades retorna 18 especialidades con status 200."""
+    auth_as("admin")
+    res = client.get("/api/v1/medicos/especialidades")
+    assert res.status_code == 200
+    body = res.json()
+    assert "especialidades" in body
+    assert len(body["especialidades"]) == 18
+    assert body["especialidades"] == ESPECIALIDADES_HTQPJB
+
+
+def test_get_especialidades_accesible_por_medico(client, auth_as, seed_users):
+    """Cualquier rol autenticado puede consultar especialidades."""
+    auth_as("medico")
+    res = client.get("/api/v1/medicos/especialidades")
+    assert res.status_code == 200
+
+
+# ── Validación de especialidad ──────────────────────────────────────────────
+
+def test_crear_medico_especialidad_invalida_retorna_422(client, auth_as, seed_users):
+    """POST /medicos con especialidad fuera de la lista oficial → 422."""
+    auth_as("admin")
+    nuevo = _crear_usuario_medico(client, email="inv.esp@test.do")
+    res = client.post(
+        "/api/v1/medicos",
+        json={
+            "id_usuario": nuevo["id"],
+            "nombre": "Juan Test",
+            "especialidad": "Cardiología",  # no está en la lista oficial
+        },
+    )
+    assert res.status_code == 422, res.text
+    assert "Especialidad inválida" in res.json()["detail"]
+
+
+def test_crear_medico_especialidad_valida_retorna_201(client, auth_as, seed_users):
+    """POST /medicos con especialidad oficial → 201."""
+    auth_as("admin")
+    nuevo = _crear_usuario_medico(client, email="val.esp@test.do")
+    res = client.post(
+        "/api/v1/medicos",
+        json={
+            "id_usuario": nuevo["id"],
+            "nombre": "Ana Torres",
+            "especialidad": "Medicina Interna",
+        },
+    )
+    assert res.status_code == 201, res.text
+    assert res.json()["especialidad"] == "Medicina Interna"
+
+
+def test_crear_con_usuario_especialidad_invalida_retorna_422(client, auth_as, seed_users):
+    """POST /medicos/con-usuario con especialidad inválida → 422, sin persistir usuario."""
+    auth_as("admin")
+    email = "invalida@test.do"
+    res = client.post(
+        "/api/v1/medicos/con-usuario",
+        json={
+            "usuario": {"nombre": "Dr. Invalid", "email": email, "password": TEST_PASSWORD},
+            "medico": {"nombre": "Dr. Invalid", "especialidad": "Cardiología"},
+        },
+    )
+    assert res.status_code == 422, res.text
+    assert "Especialidad inválida" in res.json()["detail"]

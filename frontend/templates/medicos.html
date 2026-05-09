@@ -92,8 +92,10 @@
         </div>
         <div>
           <label class="block text-sm text-slate-600">Especialidad *</label>
-          <input id="especialidad" required
-            class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" />
+          <select id="especialidad" required
+            class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2">
+            <option value="">Seleccione una especialidad…</option>
+          </select>
         </div>
         <div>
           <label class="block text-sm text-slate-600">Teléfono</label>
@@ -184,8 +186,10 @@
         </div>
         <div>
           <label class="block text-sm text-slate-600">Especialidad *</label>
-          <input id="em-especialidad" required
-            class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" />
+          <select id="em-especialidad" required
+            class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2">
+            <option value="">Seleccione una especialidad…</option>
+          </select>
         </div>
         <div>
           <label class="block text-sm text-slate-600">Teléfono</label>
@@ -218,6 +222,16 @@
     SGCM.applyMaskTelefono(document.getElementById("telefono"));
     SGCM.applyMaskTelefono(document.getElementById("em-telefono"));
 
+    async function poblarSelectoresEspecialidad() {
+      const data = await SGCM.api("/medicos/especialidades");
+      const opciones = data.especialidades
+        .map(e => `<option value="${e}">${e}</option>`)
+        .join("");
+      document.getElementById("especialidad").insertAdjacentHTML("beforeend", opciones);
+      document.getElementById("em-especialidad").insertAdjacentHTML("beforeend", opciones);
+    }
+    poblarSelectoresEspecialidad();
+
     const DIAS = { 1: "Lun", 2: "Mar", 3: "Mié", 4: "Jue", 5: "Vie", 6: "Sáb", 7: "Dom" };
     let medicoSeleccionado = null;
     let currentUserRol = null;
@@ -246,7 +260,7 @@
       for (const m of data) {
         const tr = document.createElement("tr");
         tr.innerHTML = `
-          <td class="px-3 py-2 font-medium">${m.nombre}</td>
+          <td class="px-3 py-2 font-medium">${SGCM.formatMedicoNombre(m.nombre)}</td>
           <td class="px-3 py-2">${m.especialidad}</td>
           <td class="px-3 py-2">${m.telefono ? SGCM.formatTelefono(m.telefono) : "—"}</td>
           <td class="px-3 py-2 text-right flex justify-end gap-3">
@@ -255,7 +269,7 @@
             </button>
             ${isAdmin ? `
             <button data-id="${m.id}" data-nombre="${m.nombre}" data-especialidad="${m.especialidad}"
-              data-telefono="${m.telefono || ""}" data-activo="${m.activo}"
+              data-telefono="${m.telefono || ''}" data-activo="${m.activo}"
               class="edit-btn text-amber-600 hover:underline text-sm">Editar</button>
             ` : ""}
           </td>
@@ -274,7 +288,7 @@
 
     async function abrirHorarios(medicoId, nombre) {
       medicoSeleccionado = parseInt(medicoId);
-      document.getElementById("horarios-medico-nombre").textContent = nombre;
+      document.getElementById("horarios-medico-nombre").textContent = SGCM.formatMedicoNombre(nombre);
       document.getElementById("horarios-panel").classList.remove("hidden");
       const isAdmin = currentUserRol === "admin";
       document.getElementById("horario-form-container").style.display = isAdmin ? "" : "none";
@@ -451,7 +465,9 @@
     function abrirModalEditar(data) {
       document.getElementById("em-id").value = data.id;
       document.getElementById("em-nombre").value = data.nombre;
-      document.getElementById("em-especialidad").value = data.especialidad;
+      const selEsp = document.getElementById("em-especialidad");
+      selEsp.value = data.especialidad;
+      if (!selEsp.value) selEsp.value = "";
       document.getElementById("em-telefono").value = SGCM.formatTelefono(data.telefono);
       document.getElementById("em-activo").checked = data.activo === "true";
       document.getElementById("em-error").classList.add("hidden");
