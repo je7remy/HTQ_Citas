@@ -3,6 +3,7 @@ from typing import Optional
 
 from sqlmodel import Session
 
+from app.core.datetime_utils import ahora_local
 from app.models import AccionAuditoria, Auditoria
 
 
@@ -25,5 +26,6 @@ def registrar_auditoria(
         id_registro=id_registro,
         detalle=detalle,
         ip_origen=ip_origen,
+        fecha_hora=ahora_local(),
     )
     session.add(log)

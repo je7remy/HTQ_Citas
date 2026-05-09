@@ -11,6 +11,7 @@ from sqlalchemy import func
 from sqlmodel import Session, select
 
 from app.api.deps import require_roles
+from app.core.datetime_utils import TZ_DOMINICANA
 from app.db.session import get_session
 from app.models import AccionAuditoria, Auditoria, RolUsuario, Usuario
 from app.schemas import AuditoriaPage, AuditoriaRead
@@ -40,9 +41,13 @@ def consultar_auditoria(
     if tabla:
         base = base.where(Auditoria.tabla_afectada == tabla)
     if desde:
-        base = base.where(Auditoria.fecha_hora >= datetime.combine(desde, time.min))
+        base = base.where(
+            Auditoria.fecha_hora >= datetime.combine(desde, time.min, tzinfo=TZ_DOMINICANA)
+        )
     if hasta:
-        base = base.where(Auditoria.fecha_hora <= datetime.combine(hasta, time.max))
+        base = base.where(
+            Auditoria.fecha_hora <= datetime.combine(hasta, time.max, tzinfo=TZ_DOMINICANA)
+        )
 
     total = session.exec(select(func.count()).select_from(base.subquery())).one()
 

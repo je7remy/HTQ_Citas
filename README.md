@@ -306,20 +306,6 @@ Las versiones de WeasyPrint y pydyf están **fijadas explícitamente** en `requi
 
 ---
 
-## Documentación
-
-El proyecto incluye documentación complementaria:
-
-- **Manual de Usuario.** Para el personal del hospital.
-- **Manual de Instalación.** Para el personal técnico.
-- **Guía de Configuración Personal.** Procedimiento detallado de despliegue local.
-- **Guía de Entendimiento del Proyecto.** Recorrido archivo por archivo del código.
-- **Guía de Estudio Profundo.** Testing, CI/CD, auditoría y Docker avanzado.
-- **Guía de Demostración para la Defensa.** Guion paso a paso de la presentación.
-- **Changelog v1.1.** Registro de cambios desde la entrega inicial.
-
----
-
 ## Cumplimiento legal
 
 El sistema cumple con la **Ley 172-13 sobre Protección de Datos de Carácter Personal** de la República Dominicana mediante:

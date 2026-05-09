@@ -7,6 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
 from app.api.deps import require_roles
+from app.core.datetime_utils import TZ_DOMINICANA, ahora_local
 from app.db.session import get_session
 from app.models import (
     AccionAuditoria,
@@ -61,8 +62,8 @@ def registrar_consulta(
     if not cita:
         raise HTTPException(404, "Cita no encontrada.")
 
-    fecha_hora_cita = datetime.combine(cita.fecha, cita.hora)
-    if datetime.now() < fecha_hora_cita:
+    fecha_hora_cita = datetime.combine(cita.fecha, cita.hora, tzinfo=TZ_DOMINICANA)
+    if ahora_local() < fecha_hora_cita:
         raise HTTPException(
             400,
             "No se puede registrar la consulta antes del horario programado de la cita.",

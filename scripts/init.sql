@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS usuarios (
     password_hash   VARCHAR(255)  NOT NULL,
     rol             VARCHAR(20)   NOT NULL CHECK (rol IN ('secretaria','medico','admin')),
     activo          BOOLEAN       DEFAULT TRUE,
-    fecha_creacion  TIMESTAMP     DEFAULT NOW()
+    fecha_creacion  TIMESTAMPTZ   DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS pacientes (
@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS pacientes (
     fecha_nacimiento  DATE,
     telefono          VARCHAR(15)  NOT NULL,
     direccion         TEXT,
-    fecha_registro    TIMESTAMP    DEFAULT NOW()
+    fecha_registro    TIMESTAMPTZ  DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS medicos (
@@ -54,7 +54,7 @@ CREATE TABLE IF NOT EXISTS citas (
                     CHECK (estado IN ('pendiente','atendida','cancelada')),
     motivo          TEXT,
     id_secretaria   INTEGER REFERENCES usuarios(id) NOT NULL,
-    fecha_registro  TIMESTAMP DEFAULT NOW()
+    fecha_registro  TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- Restricción central anti-duplicados (Anexo D de la tesis).
@@ -72,7 +72,7 @@ CREATE TABLE IF NOT EXISTS consultas (
     id              SERIAL PRIMARY KEY,
     id_cita         INTEGER REFERENCES citas(id) UNIQUE NOT NULL,
     observaciones   TEXT NOT NULL,
-    fecha_registro  TIMESTAMP DEFAULT NOW()
+    fecha_registro  TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS auditoria (
@@ -82,7 +82,7 @@ CREATE TABLE IF NOT EXISTS auditoria (
     tabla_afectada  VARCHAR(50) NOT NULL,
     id_registro     INTEGER,
     detalle         TEXT,
-    fecha_hora      TIMESTAMP DEFAULT NOW(),
+    fecha_hora      TIMESTAMPTZ DEFAULT NOW(),
     ip_origen       VARCHAR(45)
 );
 

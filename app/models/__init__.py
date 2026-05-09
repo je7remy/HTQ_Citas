@@ -7,8 +7,15 @@ from datetime import date, datetime, time
 from enum import Enum
 from typing import Optional
 
-from sqlalchemy import CheckConstraint, Index, text
+from sqlalchemy import CheckConstraint, Column, DateTime, Index, text
 from sqlmodel import Field, Relationship, SQLModel
+
+from app.core.datetime_utils import ahora_local
+
+
+def _ts_column() -> Column:
+    """Columna TIMESTAMPTZ NOT NULL — alineada con America/Santo_Domingo."""
+    return Column(DateTime(timezone=True), nullable=False)
 
 
 # ----------------------------- Enums -----------------------------
@@ -44,7 +51,7 @@ class Usuario(SQLModel, table=True):
     password_hash: str = Field(max_length=255, nullable=False)
     rol: RolUsuario = Field(nullable=False)
     activo: bool = Field(default=True)
-    fecha_creacion: datetime = Field(default_factory=datetime.utcnow)
+    fecha_creacion: datetime = Field(default_factory=ahora_local, sa_column=_ts_column())
 
 
 # ----------------------------- Pacientes -----------------------------
@@ -58,7 +65,7 @@ class Paciente(SQLModel, table=True):
     fecha_nacimiento: Optional[date] = None
     telefono: str = Field(max_length=15, nullable=False)
     direccion: Optional[str] = None
-    fecha_registro: datetime = Field(default_factory=datetime.utcnow)
+    fecha_registro: datetime = Field(default_factory=ahora_local, sa_column=_ts_column())
 
 
 # ----------------------------- Médicos -----------------------------
@@ -124,7 +131,7 @@ class Cita(SQLModel, table=True):
     estado: EstadoCita = Field(default=EstadoCita.pendiente)
     motivo: Optional[str] = None
     id_secretaria: int = Field(foreign_key="usuarios.id", nullable=False)
-    fecha_registro: datetime = Field(default_factory=datetime.utcnow)
+    fecha_registro: datetime = Field(default_factory=ahora_local, sa_column=_ts_column())
 
 
 # ----------------------------- Consultas -----------------------------
@@ -134,7 +141,7 @@ class Consulta(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     id_cita: int = Field(foreign_key="citas.id", nullable=False, unique=True)
     observaciones: str = Field(nullable=False)
-    fecha_registro: datetime = Field(default_factory=datetime.utcnow)
+    fecha_registro: datetime = Field(default_factory=ahora_local, sa_column=_ts_column())
 
 
 # ----------------------------- Auditoría -----------------------------
@@ -147,5 +154,5 @@ class Auditoria(SQLModel, table=True):
     tabla_afectada: str = Field(max_length=50, nullable=False)
     id_registro: Optional[int] = None
     detalle: Optional[str] = None
-    fecha_hora: datetime = Field(default_factory=datetime.utcnow)
+    fecha_hora: datetime = Field(default_factory=ahora_local, sa_column=_ts_column())
     ip_origen: Optional[str] = Field(default=None, max_length=45)

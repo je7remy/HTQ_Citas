@@ -130,9 +130,27 @@ const SGCM = (() => {
     return 'Dr. ' + nombre;
   }
 
+  /* Formatea un timestamp ISO devuelto por el backend a hora local de RD.
+     Si el backend lo envía con offset (TIMESTAMPTZ → ISO con -04:00), Date()
+     lo entiende correctamente. timeZone fuerza la presentación a RD aun si
+     el navegador del usuario está en otra zona. */
+  function formatFechaHora(isoString) {
+    if (!isoString) return '';
+    const d = new Date(isoString);
+    if (isNaN(d.getTime())) return '';
+    return d.toLocaleString('es-DO', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZone: 'America/Santo_Domingo',
+    });
+  }
+
   return {
     login, logout, requireAuth, api, me, getToken, applyNavPermissions,
     applyMaskCedula, applyMaskTelefono, formatCedula, formatTelefono, stripDigits,
-    formatMedicoNombre,
+    formatMedicoNombre, formatFechaHora,
   };
 })();
