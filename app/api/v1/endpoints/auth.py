@@ -33,7 +33,7 @@ def login(
 
     registrar_auditoria(
         session,
-        id_usuario=user.id,
+        usuario=user,
         accion=AccionAuditoria.LOGIN,
         tabla="usuarios",
         id_registro=user.id,

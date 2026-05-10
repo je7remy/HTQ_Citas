@@ -56,8 +56,18 @@
           <input id="telefono" required placeholder="(000) 000-0000" maxlength="14" class="input" />
         </div>
         <div class="field">
-          <label class="field__label">Fecha de nacimiento</label>
-          <input id="fecha_nacimiento" type="date" class="input" />
+          <label class="field__label">Sexo *</label>
+          <select id="sexo" required class="select">
+            <option value="">Seleccione…</option>
+            <option value="masculino">Masculino</option>
+            <option value="femenino">Femenino</option>
+            <option value="otro">Otro</option>
+            <option value="prefiero no decir">Prefiero no decir</option>
+          </select>
+        </div>
+        <div class="field">
+          <label class="field__label">Fecha de nacimiento *</label>
+          <input id="fecha_nacimiento" type="date" required class="input" />
         </div>
         <div class="field">
           <label class="field__label">Dirección</label>
@@ -100,6 +110,8 @@
                 <th>Cédula</th>
                 <th>Nombre</th>
                 <th>Apellidos</th>
+                <th>Sexo</th>
+                <th>Fecha nac.</th>
                 <th>Teléfono</th>
                 <th data-role="staff" style="display:none" class="text-right">Acciones</th>
               </tr>
@@ -165,7 +177,7 @@
 
       if (data.length === 0) {
         const isStaff = currentUserRol === "admin" || currentUserRol === "secretaria";
-        const colspan = isStaff ? 5 : 4;
+        const colspan = isStaff ? 7 : 6;
         tbody.innerHTML = `
           <tr><td colspan="${colspan}" style="padding:0;">
             <div class="empty-state">
@@ -183,10 +195,18 @@
       const isStaff = currentUserRol === "admin" || currentUserRol === "secretaria";
       for (const p of data) {
         const tr = document.createElement("tr");
+        const fechaNacFmt = p.fecha_nacimiento
+          ? p.fecha_nacimiento.slice(8, 10) + "/" + p.fecha_nacimiento.slice(5, 7) + "/" + p.fecha_nacimiento.slice(0, 4)
+          : "—";
+        const sexoCap = p.sexo
+          ? p.sexo.charAt(0).toUpperCase() + p.sexo.slice(1)
+          : "—";
         tr.innerHTML = `
           <td class="mono">${SGCM.formatCedula(p.cedula)}</td>
           <td><strong>${p.nombre}</strong></td>
           <td>${p.apellidos}</td>
+          <td>${sexoCap}</td>
+          <td class="mono">${fechaNacFmt}</td>
           <td>${SGCM.formatTelefono(p.telefono) || "—"}</td>
           ${isStaff ? `<td class="text-right">
             <span class="row-actions">
@@ -211,6 +231,7 @@
       document.getElementById("nombre").value = p.nombre;
       document.getElementById("apellidos").value = p.apellidos;
       document.getElementById("telefono").value = SGCM.formatTelefono(p.telefono);
+      document.getElementById("sexo").value = p.sexo || "";
       document.getElementById("fecha_nacimiento").value = p.fecha_nacimiento || "";
       document.getElementById("direccion").value = p.direccion || "";
       formTitle.textContent = `Editar paciente #${p.id}`;
@@ -234,6 +255,7 @@
         cedula: document.getElementById("cedula").value,
         nombre: document.getElementById("nombre").value,
         apellidos: document.getElementById("apellidos").value,
+        sexo: document.getElementById("sexo").value,
         telefono: SGCM.stripDigits(document.getElementById("telefono").value),
         fecha_nacimiento: document.getElementById("fecha_nacimiento").value || null,
         direccion: document.getElementById("direccion").value || null,

@@ -4,8 +4,9 @@ from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, or_, select
 
 from app.api.deps import require_roles
+from app.core.datetime_utils import formatear_hora_12
 from app.db.session import get_session
-from app.models import AccionAuditoria, Paciente, RolUsuario, Usuario
+from app.models import AccionAuditoria, Cita, Consulta, EstadoCita, Medico, Paciente, RolUsuario, Usuario
 from app.schemas import PacienteCreate, PacienteRead, PacienteUpdate
 from app.services.audit import registrar_auditoria
 
@@ -59,7 +60,7 @@ def crear(
 
     registrar_auditoria(
         session,
-        id_usuario=actor.id,
+        usuario=actor,
         accion=AccionAuditoria.CREATE,
         tabla="pacientes",
         id_registro=p.id,
@@ -88,7 +89,7 @@ def actualizar(
     session.add(p)
     registrar_auditoria(
         session,
-        id_usuario=actor.id,
+        usuario=actor,
         accion=AccionAuditoria.UPDATE,
         tabla="pacientes",
         id_registro=p.id,
@@ -98,6 +99,53 @@ def actualizar(
     session.commit()
     session.refresh(p)
     return p
+
+
+@router.get("/{paciente_id}/historial-medico")
+def historial_medico(
+    paciente_id: int,
+    medico_id: int | None = Query(default=None),
+    session: Session = Depends(get_session),
+    _: Usuario = Depends(_any_user),
+):
+    """Historial de consultas atendidas del paciente, opcionalmente filtrado por médico.
+
+    Ordenado por fecha+hora descendente (más reciente primero).
+    """
+    if not session.get(Paciente, paciente_id):
+        raise HTTPException(404, "Paciente no encontrado.")
+
+    stmt = (
+        select(Consulta, Cita, Medico)
+        .where(
+            Consulta.id_cita == Cita.id,
+            Cita.id_medico == Medico.id,
+            Cita.id_paciente == paciente_id,
+            Cita.estado == EstadoCita.atendida,
+        )
+    )
+    if medico_id is not None:
+        stmt = stmt.where(Cita.id_medico == medico_id)
+    stmt = stmt.order_by(Cita.fecha.desc(), Cita.hora.desc())
+
+    return [
+        {
+            "id_consulta": c.id,
+            "id_cita": cita.id,
+            "fecha_consulta": cita.fecha.isoformat(),
+            "hora_consulta": formatear_hora_12(cita.hora),
+            "medico": m.nombre,
+            "id_medico": m.id,
+            "especialidad": m.especialidad,
+            "motivo_consulta": c.motivo_consulta,
+            "examen_fisico": c.examen_fisico,
+            "condicion_principal": c.condicion_principal,
+            "condiciones_secundarias": c.condiciones_secundarias,
+            "tratamiento": c.tratamiento,
+            "observaciones": c.observaciones,
+        }
+        for c, cita, m in session.exec(stmt).all()
+    ]
 
 
 @router.delete("/{paciente_id}", status_code=204)
@@ -113,7 +161,7 @@ def eliminar(
     session.delete(p)
     registrar_auditoria(
         session,
-        id_usuario=actor.id,
+        usuario=actor,
         accion=AccionAuditoria.DELETE,
         tabla="pacientes",
         id_registro=paciente_id,

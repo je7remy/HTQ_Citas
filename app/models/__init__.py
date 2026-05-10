@@ -38,6 +38,13 @@ class AccionAuditoria(str, Enum):
     LOGIN = "LOGIN"
 
 
+class SexoPaciente(str, Enum):
+    masculino = "masculino"
+    femenino = "femenino"
+    otro = "otro"
+    prefiero_no_decir = "prefiero no decir"
+
+
 # ----------------------------- Usuarios -----------------------------
 class Usuario(SQLModel, table=True):
     __tablename__ = "usuarios"
@@ -57,12 +64,19 @@ class Usuario(SQLModel, table=True):
 # ----------------------------- Pacientes -----------------------------
 class Paciente(SQLModel, table=True):
     __tablename__ = "pacientes"
+    __table_args__ = (
+        CheckConstraint(
+            "sexo IN ('masculino','femenino','otro','prefiero no decir')",
+            name="ck_pacientes_sexo",
+        ),
+    )
 
     id: Optional[int] = Field(default=None, primary_key=True)
     cedula: str = Field(max_length=13, nullable=False, unique=True, index=True)
     nombre: str = Field(max_length=100, nullable=False)
     apellidos: str = Field(max_length=100, nullable=False)
-    fecha_nacimiento: Optional[date] = None
+    sexo: str = Field(max_length=20, nullable=False)
+    fecha_nacimiento: date = Field(nullable=False)
     telefono: str = Field(max_length=15, nullable=False)
     direccion: Optional[str] = None
     fecha_registro: datetime = Field(default_factory=ahora_local, sa_column=_ts_column())
@@ -76,6 +90,8 @@ class Medico(SQLModel, table=True):
     id_usuario: Optional[int] = Field(default=None, foreign_key="usuarios.id")
     nombre: str = Field(max_length=100, nullable=False)
     especialidad: str = Field(max_length=50, nullable=False)
+    especialidad_secundaria_1: Optional[str] = Field(default=None, max_length=50)
+    especialidad_secundaria_2: Optional[str] = Field(default=None, max_length=50)
     telefono: Optional[str] = Field(default=None, max_length=15)
     activo: bool = Field(default=True)
 
@@ -140,7 +156,14 @@ class Consulta(SQLModel, table=True):
 
     id: Optional[int] = Field(default=None, primary_key=True)
     id_cita: int = Field(foreign_key="citas.id", nullable=False, unique=True)
-    observaciones: str = Field(nullable=False)
+    # Diagnóstico estructurado (Mejora 3.2)
+    motivo_consulta: Optional[str] = None
+    examen_fisico: Optional[str] = None
+    condicion_principal: str = Field(nullable=False)
+    condiciones_secundarias: Optional[str] = None
+    tratamiento: Optional[str] = None
+    # Campo legacy: se conserva para compatibilidad con datos pre-3.2
+    observaciones: Optional[str] = None
     fecha_registro: datetime = Field(default_factory=ahora_local, sa_column=_ts_column())
 
 
@@ -150,6 +173,7 @@ class Auditoria(SQLModel, table=True):
 
     id: Optional[int] = Field(default=None, primary_key=True)
     id_usuario: Optional[int] = Field(default=None, foreign_key="usuarios.id")
+    nombre_usuario: str = Field(max_length=100, nullable=False)
     accion: AccionAuditoria = Field(nullable=False)
     tabla_afectada: str = Field(max_length=50, nullable=False)
     id_registro: Optional[int] = None

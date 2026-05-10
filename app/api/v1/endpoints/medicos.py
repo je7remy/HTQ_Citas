@@ -18,6 +18,7 @@ from app.schemas import (
     MedicoUpdate,
 )
 from app.services.audit import registrar_auditoria
+from app.services.disponibilidad_service import proxima_disponibilidad
 
 router = APIRouter(prefix="/medicos", tags=["medicos"])
 
@@ -41,6 +42,25 @@ def _validar_especialidad(especialidad: str) -> None:
         raise HTTPException(422, _MSG_ESPECIALIDAD_INVALIDA)
 
 
+def _validar_especialidades(
+    principal: str,
+    secundaria_1: str | None,
+    secundaria_2: str | None,
+) -> None:
+    """Valida principal + secundarias contra el catálogo y la unicidad."""
+    _validar_especialidad(principal)
+    if secundaria_1 is not None:
+        _validar_especialidad(secundaria_1)
+    if secundaria_2 is not None:
+        _validar_especialidad(secundaria_2)
+    valores = [v for v in (principal, secundaria_1, secundaria_2) if v is not None]
+    if len(valores) != len(set(valores)):
+        raise HTTPException(
+            422,
+            "Las especialidades principal y secundarias deben ser distintas entre sí.",
+        )
+
+
 # ---------- Especialidades ----------
 @router.get("/especialidades")
 def listar_especialidades(_: Usuario = Depends(_any)):
@@ -53,6 +73,16 @@ def listar(session: Session = Depends(get_session), _: Usuario = Depends(_any)):
     return session.exec(select(Medico).where(Medico.activo == True).order_by(Medico.nombre)).all()  # noqa: E712
 
 
+@router.get("/{medico_id}/proxima-disponibilidad")
+def get_proxima_disponibilidad(
+    medico_id: int,
+    session: Session = Depends(get_session),
+    _: Usuario = Depends(_any),
+):
+    """Sugerencia de próximo slot libre del médico (None si no hay en 30 días)."""
+    return proxima_disponibilidad(session, medico_id)
+
+
 @router.post("", response_model=MedicoRead, status_code=status.HTTP_201_CREATED)
 def crear(
     payload: MedicoCreate,
@@ -60,7 +90,11 @@ def crear(
     session: Session = Depends(get_session),
     actor: Usuario = Depends(_admin),
 ):
-    _validar_especialidad(payload.especialidad)
+    _validar_especialidades(
+        payload.especialidad,
+        payload.especialidad_secundaria_1,
+        payload.especialidad_secundaria_2,
+    )
     if payload.id_usuario is not None:
         u = session.get(Usuario, payload.id_usuario)
         if not u or u.rol != RolUsuario.medico:
@@ -83,7 +117,7 @@ def crear(
     session.flush()
     registrar_auditoria(
         session,
-        id_usuario=actor.id,
+        usuario=actor,
         accion=AccionAuditoria.CREATE,
         tabla="medicos",
         id_registro=m.id,
@@ -102,7 +136,11 @@ def crear_con_usuario(
     session: Session = Depends(get_session),
     actor: Usuario = Depends(_admin),
 ):
-    _validar_especialidad(payload.medico.especialidad)
+    _validar_especialidades(
+        payload.medico.especialidad,
+        payload.medico.especialidad_secundaria_1,
+        payload.medico.especialidad_secundaria_2,
+    )
     existing = session.exec(select(Usuario).where(Usuario.email == payload.usuario.email)).first()
     if existing:
         raise HTTPException(409, "El email ya está registrado.")
@@ -120,6 +158,8 @@ def crear_con_usuario(
         id_usuario=u.id,
         nombre=_strip_doctor_prefix(payload.medico.nombre),
         especialidad=payload.medico.especialidad,
+        especialidad_secundaria_1=payload.medico.especialidad_secundaria_1,
+        especialidad_secundaria_2=payload.medico.especialidad_secundaria_2,
         telefono=payload.medico.telefono,
     )
     session.add(m)
@@ -127,7 +167,7 @@ def crear_con_usuario(
 
     registrar_auditoria(
         session,
-        id_usuario=actor.id,
+        usuario=actor,
         accion=AccionAuditoria.CREATE,
         tabla="medicos",
         id_registro=m.id,
@@ -151,8 +191,12 @@ def actualizar(
     if not m:
         raise HTTPException(404, "Médico no encontrado.")
     data = payload.model_dump(exclude_unset=True)
-    if "especialidad" in data:
-        _validar_especialidad(data["especialidad"])
+    esp_keys = {"especialidad", "especialidad_secundaria_1", "especialidad_secundaria_2"}
+    if data.keys() & esp_keys:
+        principal = data.get("especialidad", m.especialidad)
+        sec1 = data["especialidad_secundaria_1"] if "especialidad_secundaria_1" in data else m.especialidad_secundaria_1
+        sec2 = data["especialidad_secundaria_2"] if "especialidad_secundaria_2" in data else m.especialidad_secundaria_2
+        _validar_especialidades(principal, sec1, sec2)
     if "nombre" in data:
         data["nombre"] = _strip_doctor_prefix(data["nombre"])
     for k, v in data.items():
@@ -160,7 +204,7 @@ def actualizar(
     session.add(m)
     registrar_auditoria(
         session,
-        id_usuario=actor.id,
+        usuario=actor,
         accion=AccionAuditoria.UPDATE,
         tabla="medicos",
         id_registro=m.id,
@@ -201,7 +245,7 @@ def crear_horario(
     session.flush()
     registrar_auditoria(
         session,
-        id_usuario=actor.id,
+        usuario=actor,
         accion=AccionAuditoria.CREATE,
         tabla="horarios",
         id_registro=h.id,
@@ -227,7 +271,7 @@ def eliminar_horario(
     session.add(h)
     registrar_auditoria(
         session,
-        id_usuario=actor.id,
+        usuario=actor,
         accion=AccionAuditoria.DELETE,
         tabla="horarios",
         id_registro=horario_id,

@@ -19,19 +19,23 @@ CREATE TABLE IF NOT EXISTS pacientes (
     cedula            VARCHAR(13)  UNIQUE NOT NULL,
     nombre            VARCHAR(100) NOT NULL,
     apellidos         VARCHAR(100) NOT NULL,
-    fecha_nacimiento  DATE,
+    sexo              VARCHAR(20)  NOT NULL
+                       CHECK (sexo IN ('masculino','femenino','otro','prefiero no decir')),
+    fecha_nacimiento  DATE         NOT NULL,
     telefono          VARCHAR(15)  NOT NULL,
     direccion         TEXT,
     fecha_registro    TIMESTAMPTZ  DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS medicos (
-    id            SERIAL PRIMARY KEY,
-    id_usuario    INTEGER REFERENCES usuarios(id) ON DELETE SET NULL,
-    nombre        VARCHAR(100) NOT NULL,
-    especialidad  VARCHAR(50)  NOT NULL,
-    telefono      VARCHAR(15),
-    activo        BOOLEAN      DEFAULT TRUE
+    id                          SERIAL PRIMARY KEY,
+    id_usuario                  INTEGER REFERENCES usuarios(id) ON DELETE SET NULL,
+    nombre                      VARCHAR(100) NOT NULL,
+    especialidad                VARCHAR(50)  NOT NULL,
+    especialidad_secundaria_1   VARCHAR(50),
+    especialidad_secundaria_2   VARCHAR(50),
+    telefono                    VARCHAR(15),
+    activo                      BOOLEAN      DEFAULT TRUE
 );
 
 CREATE TABLE IF NOT EXISTS horarios (
@@ -69,15 +73,21 @@ CREATE INDEX IF NOT EXISTS idx_citas_fecha     ON citas(fecha);
 CREATE INDEX IF NOT EXISTS idx_citas_id_medico ON citas(id_medico);
 
 CREATE TABLE IF NOT EXISTS consultas (
-    id              SERIAL PRIMARY KEY,
-    id_cita         INTEGER REFERENCES citas(id) UNIQUE NOT NULL,
-    observaciones   TEXT NOT NULL,
-    fecha_registro  TIMESTAMPTZ DEFAULT NOW()
+    id                        SERIAL PRIMARY KEY,
+    id_cita                   INTEGER REFERENCES citas(id) UNIQUE NOT NULL,
+    motivo_consulta           TEXT,
+    examen_fisico             TEXT,
+    condicion_principal       TEXT NOT NULL,
+    condiciones_secundarias   TEXT,
+    tratamiento               TEXT,
+    observaciones             TEXT,
+    fecha_registro            TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS auditoria (
     id              SERIAL PRIMARY KEY,
     id_usuario      INTEGER REFERENCES usuarios(id),
+    nombre_usuario  VARCHAR(100) NOT NULL,
     accion          VARCHAR(20) NOT NULL,
     tabla_afectada  VARCHAR(50) NOT NULL,
     id_registro     INTEGER,

@@ -23,6 +23,8 @@ def _crear_paciente(client) -> int:
             "cedula": "00112345678",
             "nombre": "Ana",
             "apellidos": "García",
+            "sexo": "femenino",
+            "fecha_nacimiento": "1990-04-12",
             "telefono": "8095550100",
         },
     )

@@ -38,9 +38,20 @@
     <div id="agenda-lista" class="stack"></div>
   </main>
 
+  <!-- ══════════════ MODAL: HISTORIAL MÉDICO ══════════════ -->
+  <div id="modal-historial" class="modal-backdrop is-hidden">
+    <div class="modal modal--lg">
+      <div class="modal__header">
+        <h2 class="modal__title">Historial médico de <span id="hm-paciente-nombre">paciente</span></h2>
+        <button type="button" class="modal__close" id="hm-cerrar"><i data-lucide="x"></i></button>
+      </div>
+      <div id="hm-body" class="modal__body stack"></div>
+    </div>
+  </div>
+
   <!-- ══════════════ MODAL: REGISTRAR CONSULTA ══════════════ -->
   <div id="modal-consulta" class="modal-backdrop is-hidden">
-    <div class="modal">
+    <div class="modal modal--lg">
       <div class="modal__header">
         <h2 class="modal__title">Registrar consulta</h2>
         <button type="button" class="modal__close" id="rc-cerrar"><i data-lucide="x"></i></button>
@@ -51,11 +62,32 @@
           <i data-lucide="info"></i>
           <span><strong>Cita:</strong> <span id="rc-cita-info"></span></span>
         </div>
-        <div class="field">
-          <label class="field__label">Observaciones *</label>
-          <textarea id="rc-observaciones" required rows="5"
-            placeholder="Diagnóstico, tratamiento indicado, notas…"
-            class="textarea"></textarea>
+        <div class="grid-2">
+          <div class="field">
+            <label class="field__label">Motivo de la consulta</label>
+            <textarea id="rc-motivo" rows="3" class="textarea"
+              placeholder="Razón principal por la que el paciente acude…"></textarea>
+          </div>
+          <div class="field">
+            <label class="field__label">Examen físico y clínico</label>
+            <textarea id="rc-examen" rows="3" class="textarea"
+              placeholder="Hallazgos del examen físico…"></textarea>
+          </div>
+          <div class="field" style="grid-column:1/-1;">
+            <label class="field__label">Condición principal *</label>
+            <textarea id="rc-condicion" required rows="2" class="textarea"
+              placeholder="Diagnóstico principal…"></textarea>
+          </div>
+          <div class="field">
+            <label class="field__label">Condiciones secundarias</label>
+            <textarea id="rc-condiciones-sec" rows="3" class="textarea"
+              placeholder="Diagnósticos asociados o comorbilidades…"></textarea>
+          </div>
+          <div class="field">
+            <label class="field__label">Tratamiento</label>
+            <textarea id="rc-tratamiento" rows="3" class="textarea"
+              placeholder="Indicaciones, medicación, recomendaciones…"></textarea>
+          </div>
         </div>
         <div id="rc-error" class="alert alert--danger is-hidden">
           <i data-lucide="alert-circle"></i>
@@ -147,10 +179,14 @@
           const [horaNum, ampm] = hora12.split(" ");
           const fechaCorta = fechaHoraCita.toLocaleDateString("es-DO", { day: "2-digit", month: "2-digit", year: "numeric" });
 
+          const histBtn = `<button data-paciente="${cita.id_paciente}" class="hist-btn btn btn-ghost btn-sm">
+              <i data-lucide="history"></i><span>Historial</span>
+            </button>`;
           let accionHTML;
           if (cita.estado === "pendiente") {
             if (puedeAtender) {
               accionHTML = `
+                ${histBtn}
                 <button data-id="${cita.id}" data-info="Paciente #${cita.id_paciente} · ${hora12}"
                   class="atender-btn btn btn-success btn-sm">
                   <i data-lucide="stethoscope"></i>
@@ -158,6 +194,7 @@
                 </button>`;
             } else {
               accionHTML = `
+                ${histBtn}
                 <button disabled class="btn btn-ghost btn-sm" style="cursor:not-allowed;">
                   <i data-lucide="lock"></i>
                   <span>Registrar consulta</span>
@@ -165,7 +202,9 @@
                 <span class="text-soft" style="font-size:11.5px;">Disponible desde ${fechaCorta} ${hora12}</span>`;
             }
           } else {
-            accionHTML = `<span class="badge badge--gray"><i data-lucide="check" style="width:12px;height:12px;"></i> Finalizada</span>`;
+            accionHTML = `
+              <span class="badge badge--gray"><i data-lucide="check" style="width:12px;height:12px;"></i> Finalizada</span>
+              ${histBtn}`;
           }
 
           card.innerHTML = `
@@ -188,6 +227,9 @@
         lista.querySelectorAll(".atender-btn").forEach((b) =>
           b.addEventListener("click", () => abrirModalConsulta(b.dataset.id, b.dataset.info))
         );
+        lista.querySelectorAll(".hist-btn").forEach((b) =>
+          b.addEventListener("click", () => abrirHistorial(parseInt(b.dataset.paciente)))
+        );
         lucide.createIcons();
       } catch (err) {
         setAlert(document.getElementById("agenda-error"), err.message);
@@ -196,11 +238,64 @@
 
     document.getElementById("rc-cerrar").addEventListener("click", cerrarModalConsulta);
     document.getElementById("rc-cancelar").addEventListener("click", cerrarModalConsulta);
+    document.getElementById("hm-cerrar").addEventListener("click", () => {
+      document.getElementById("modal-historial").classList.add("is-hidden");
+    });
+
+    async function abrirHistorial(pacienteId, medicoId = null) {
+      const body = document.getElementById("hm-body");
+      const nombreEl = document.getElementById("hm-paciente-nombre");
+      body.innerHTML = `<div class="text-soft">Cargando…</div>`;
+      nombreEl.textContent = `paciente #${pacienteId}`;
+      document.getElementById("modal-historial").classList.remove("is-hidden");
+      try {
+        const [paciente, historial] = await Promise.all([
+          SGCM.api(`/pacientes/${pacienteId}`),
+          SGCM.api(`/pacientes/${pacienteId}/historial-medico` + (medicoId ? `?medico_id=${medicoId}` : "")),
+        ]);
+        nombreEl.textContent = `${paciente.nombre} ${paciente.apellidos}`;
+        if (historial.length === 0) {
+          body.innerHTML = `
+            <div class="empty-state">
+              <div class="empty-state__icon"><i data-lucide="file-x"></i></div>
+              <div class="empty-state__title">Sin consultas previas</div>
+              <div class="empty-state__text">No hay consultas registradas para este paciente.</div>
+            </div>`;
+        } else {
+          body.innerHTML = historial.map((h, i) => {
+            const fechaCorta = h.fecha_consulta.slice(8, 10) + "/" + h.fecha_consulta.slice(5, 7) + "/" + h.fecha_consulta.slice(0, 4);
+            const sec = (label, val) => val ? `<div style="margin-top:6px;"><strong>${label}:</strong> <span class="text-muted">${val}</span></div>` : "";
+            return `
+              <details class="card" style="padding:12px 14px;" ${i === 0 ? "open" : ""}>
+                <summary style="cursor:pointer; font-weight:600;">
+                  ${fechaCorta} · ${h.hora_consulta} · ${SGCM.formatMedicoNombre(h.medico)} (${h.especialidad})
+                  <div class="text-muted" style="font-weight:400; font-size:13px;">${h.condicion_principal || "—"}</div>
+                </summary>
+                <div style="margin-top:10px; font-size:13.5px;">
+                  ${sec("Motivo", h.motivo_consulta)}
+                  ${sec("Examen físico", h.examen_fisico)}
+                  ${sec("Condición principal", h.condicion_principal)}
+                  ${sec("Condiciones secundarias", h.condiciones_secundarias)}
+                  ${sec("Tratamiento", h.tratamiento)}
+                </div>
+              </details>`;
+          }).join("");
+        }
+        lucide.createIcons();
+      } catch (e) {
+        body.innerHTML = `<div class="alert alert--danger"><i data-lucide="alert-circle"></i><span>${e.message}</span></div>`;
+        lucide.createIcons();
+      }
+    }
 
     function abrirModalConsulta(citaId, citaInfo) {
       document.getElementById("rc-cita-id").value = citaId;
       document.getElementById("rc-cita-info").textContent = citaInfo;
-      document.getElementById("rc-observaciones").value = "";
+      document.getElementById("rc-motivo").value = "";
+      document.getElementById("rc-examen").value = "";
+      document.getElementById("rc-condicion").value = "";
+      document.getElementById("rc-condiciones-sec").value = "";
+      document.getElementById("rc-tratamiento").value = "";
       document.getElementById("rc-error").classList.add("is-hidden");
       document.getElementById("modal-consulta").classList.remove("is-hidden");
       lucide.createIcons();
@@ -219,7 +314,11 @@
           method: "POST",
           body: JSON.stringify({
             id_cita: parseInt(document.getElementById("rc-cita-id").value),
-            observaciones: document.getElementById("rc-observaciones").value,
+            motivo_consulta: document.getElementById("rc-motivo").value || null,
+            examen_fisico: document.getElementById("rc-examen").value || null,
+            condicion_principal: document.getElementById("rc-condicion").value,
+            condiciones_secundarias: document.getElementById("rc-condiciones-sec").value || null,
+            tratamiento: document.getElementById("rc-tratamiento").value || null,
           }),
         });
         cerrarModalConsulta();

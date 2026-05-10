@@ -288,6 +288,16 @@ El workflow `.github/workflows/ci.yml` se ejecuta ante cada push y pull request:
 
 Las versiones de WeasyPrint y pydyf están **fijadas explícitamente** en `requirements.txt` para evitar fallos derivados de cambios incompatibles entre versiones menores.
 
+### Badge de estado
+
+El badge de CI en la cabecera apunta a `https://img.shields.io/github/actions/workflow/status/je7remy/HTQ_Citas/ci.yml`. Si el repositorio es privado, shields.io no puede leer el estado y mostrará "no status". En ese caso usar el badge nativo de GitHub, que funciona si el visitante está autenticado:
+
+```markdown
+[![CI](https://github.com/je7remy/HTQ_Citas/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/je7remy/HTQ_Citas/actions/workflows/ci.yml)
+```
+
+Como alternativa siempre disponible, la pestaña **Actions** del repositorio refleja el estado actual del último run.
+
 ---
 
 ## Comandos útiles
@@ -336,4 +346,4 @@ La Vega, República Dominicana — 2026
 
 ## Versión
 
-**SGCM v1.1** — Mayo 2026
+**SGCM v13.1** — Mayo 2026

@@ -36,6 +36,16 @@ _TEMPLATE = """
   .pendiente { background: #dbeafe; color: #1e3a8a; }
   .atendida { background: #dcfce7; color: #166534; }
   .cancelada { background: #f3f4f6; color: #4b5563; }
+  .resumen-periodo { margin-top: 40px; background: #f9fafb;
+                     padding: 14px 18px; border-radius: 6px;
+                     border: 1px solid #e5e7eb; }
+  .resumen-periodo h2 { color: #1e40af; font-size: 12pt; margin: 0 0 10px 0; }
+  .resumen-table { width: auto; min-width: 260px; margin: 0; }
+  .resumen-table td { background: transparent !important; border-bottom: none;
+                      padding: 4px 14px 4px 0; }
+  .resumen-table td:nth-child(2) { text-align: right; font-variant-numeric: tabular-nums; }
+  .resumen-table tr.total td { font-weight: bold; border-top: 1px solid #d1d5db;
+                               padding-top: 8px; }
   footer { position: fixed; bottom: 0; left: 0; right: 0; text-align: center;
            color: #9ca3af; font-size: 8pt; }
 </style>
@@ -69,6 +79,16 @@ _TEMPLATE = """
       {% endfor %}
     </tbody>
   </table>
+
+  <div class="resumen-periodo">
+    <h2>Resumen del periodo</h2>
+    <table class="resumen-table">
+      <tr><td>Citas pendientes</td><td>{{ resumen.pendientes }}</td></tr>
+      <tr><td>Citas atendidas</td><td>{{ resumen.atendidas }}</td></tr>
+      <tr><td>Citas canceladas</td><td>{{ resumen.canceladas }}</td></tr>
+      <tr class="total"><td>Total general</td><td>{{ resumen.total }}</td></tr>
+    </table>
+  </div>
 
   <footer>SGCM — Generado automáticamente · HTQPJB · La Vega, R.D.</footer>
 </body>
@@ -115,10 +135,18 @@ def reporte_citas_pdf(
 
     fecha_emision = formatear_fecha_emision()
 
+    resumen = {
+        "pendientes": sum(1 for f in filas if f["estado"] == "pendiente"),
+        "atendidas":  sum(1 for f in filas if f["estado"] == "atendida"),
+        "canceladas": sum(1 for f in filas if f["estado"] == "cancelada"),
+        "total":      len(filas),
+    }
+
     html_str = Template(_TEMPLATE).render(
         desde=desde.isoformat(), hasta=hasta.isoformat(),
         filas=filas, medico_nombre=medico_nombre,
         fecha_emision=fecha_emision,
+        resumen=resumen,
     )
     pdf_bytes = HTML(string=html_str).write_pdf()
 

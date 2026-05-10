@@ -31,17 +31,26 @@ def _a_local(dt: datetime) -> datetime:
     return dt.astimezone(TZ_DOMINICANA)
 
 
+def _to_12h(h: int, m: int, s: int | None = None) -> str:
+    ampm = "PM" if h >= 12 else "AM"
+    h12 = 12 if h % 12 == 0 else h % 12
+    if s is None:
+        return f"{h12}:{str(m).zfill(2)} {ampm}"
+    return f"{h12}:{str(m).zfill(2)}:{str(s).zfill(2)} {ampm}"
+
+
 def formatear_fecha_hora(dt: datetime) -> str:
-    """Formatea un datetime para UI/reportes: 'dd/mm/aaaa HH:MM:SS' en hora RD."""
-    return _a_local(dt).strftime("%d/%m/%Y %H:%M:%S")
+    """Formatea un datetime para UI/reportes: 'dd/mm/aaaa h:MM:SS AM/PM' en hora RD."""
+    local = _a_local(dt)
+    return f"{local.strftime('%d/%m/%Y')} {_to_12h(local.hour, local.minute, local.second)}"
 
 
 def formatear_fecha_emision(dt: datetime | None = None) -> str:
-    """'8 de mayo de 2026 a las 15:35' en hora RD. Sin argumento usa ahora."""
+    """'8 de mayo de 2026 a las 3:35 PM' en hora RD. Sin argumento usa ahora."""
     local = _a_local(dt) if dt is not None else ahora_local()
     return (
         f"{local.day} de {_MESES_ES[local.month]} de {local.year} "
-        f"a las {local.strftime('%H:%M')}"
+        f"a las {_to_12h(local.hour, local.minute)}"
     )
 
 
@@ -53,8 +62,4 @@ def formatear_hora_12(hora: time | None) -> str:
     """
     if hora is None:
         return ""
-    h = hora.hour
-    m = str(hora.minute).zfill(2)
-    ampm = "PM" if h >= 12 else "AM"
-    h12 = 12 if h % 12 == 0 else h % 12
-    return f"{h12}:{m} {ampm}"
+    return _to_12h(hora.hour, hora.minute)

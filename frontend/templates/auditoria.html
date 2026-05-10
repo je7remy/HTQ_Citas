@@ -92,6 +92,7 @@
               <tr>
                 <th>Fecha / Hora</th>
                 <th>Usuario</th>
+                <th>ID</th>
                 <th>Acción</th>
                 <th>Tabla</th>
                 <th>Registro</th>
@@ -173,7 +174,7 @@
         const tbody = document.getElementById("tbody");
         tbody.innerHTML = "";
         if (data.items.length === 0) {
-          tbody.innerHTML = `<tr><td colspan="7" style="padding:0;">
+          tbody.innerHTML = `<tr><td colspan="8" style="padding:0;">
             <div class="empty-state">
               <div class="empty-state__icon"><i data-lucide="file-search"></i></div>
               <div class="empty-state__title">Sin registros</div>
@@ -187,7 +188,8 @@
             const colorClass = COLOR_ACCION[r.accion] || "badge--gray";
             tr.innerHTML = `
               <td class="mono" style="white-space:nowrap;">${fecha}</td>
-              <td>${r.id_usuario ?? "—"}</td>
+              <td><strong>${r.nombre_usuario ?? "—"}</strong></td>
+              <td class="mono text-muted" style="font-size:11.5px;">${r.id_usuario ?? "—"}</td>
               <td><span class="badge ${colorClass}">${r.accion}</span></td>
               <td class="mono">${r.tabla_afectada}</td>
               <td class="mono">${r.id_registro ?? "—"}</td>

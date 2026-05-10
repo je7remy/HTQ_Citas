@@ -112,7 +112,7 @@ def crear(
 
     registrar_auditoria(
         session,
-        id_usuario=actor.id,
+        usuario=actor,
         accion=AccionAuditoria.CREATE,
         tabla="citas",
         id_registro=cita.id,
@@ -162,7 +162,7 @@ def actualizar(
 
     registrar_auditoria(
         session,
-        id_usuario=actor.id,
+        usuario=actor,
         accion=AccionAuditoria.UPDATE,
         tabla="citas",
         id_registro=cita.id,
@@ -189,7 +189,7 @@ def cancelar(
     session.add(cita)
     registrar_auditoria(
         session,
-        id_usuario=actor.id,
+        usuario=actor,
         accion=AccionAuditoria.DELETE,
         tabla="citas",
         id_registro=cita.id,

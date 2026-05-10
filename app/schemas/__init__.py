@@ -1,10 +1,12 @@
 """Schemas Pydantic (DTOs) — separados de los modelos ORM."""
 from datetime import date, datetime, time
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 from app.models import EstadoCita, RolUsuario
+
+SexoLiteral = Literal["masculino", "femenino", "otro", "prefiero no decir"]
 
 
 # ============ Auth ============
@@ -50,7 +52,8 @@ class PacienteBase(BaseModel):
     cedula: str = Field(min_length=11, max_length=13)
     nombre: str = Field(min_length=2, max_length=100)
     apellidos: str = Field(min_length=2, max_length=100)
-    fecha_nacimiento: Optional[date] = None
+    sexo: SexoLiteral
+    fecha_nacimiento: date
     telefono: str = Field(min_length=7, max_length=15)
     direccion: Optional[str] = None
 
@@ -72,6 +75,7 @@ class PacienteCreate(PacienteBase):
 class PacienteUpdate(BaseModel):
     nombre: Optional[str] = None
     apellidos: Optional[str] = None
+    sexo: Optional[SexoLiteral] = None
     telefono: Optional[str] = None
     direccion: Optional[str] = None
     fecha_nacimiento: Optional[date] = None
@@ -88,12 +92,16 @@ class MedicoCreate(BaseModel):
     id_usuario: Optional[int] = None
     nombre: str = Field(min_length=2, max_length=100)
     especialidad: str = Field(min_length=2, max_length=50)
+    especialidad_secundaria_1: Optional[str] = Field(default=None, max_length=50)
+    especialidad_secundaria_2: Optional[str] = Field(default=None, max_length=50)
     telefono: Optional[str] = Field(default=None, max_length=15)
 
 
 class MedicoUpdate(BaseModel):
     nombre: Optional[str] = None
     especialidad: Optional[str] = None
+    especialidad_secundaria_1: Optional[str] = None
+    especialidad_secundaria_2: Optional[str] = None
     telefono: Optional[str] = None
     activo: Optional[bool] = None
 
@@ -104,6 +112,8 @@ class MedicoRead(BaseModel):
     id_usuario: Optional[int]
     nombre: str
     especialidad: str
+    especialidad_secundaria_1: Optional[str] = None
+    especialidad_secundaria_2: Optional[str] = None
     telefono: Optional[str]
     activo: bool
 
@@ -166,14 +176,23 @@ class CitaRead(BaseModel):
 # ============ Consulta ============
 class ConsultaCreate(BaseModel):
     id_cita: int
-    observaciones: str = Field(min_length=1)
+    motivo_consulta: Optional[str] = None
+    examen_fisico: Optional[str] = None
+    condicion_principal: str = Field(min_length=1, description="Diagnóstico principal")
+    condiciones_secundarias: Optional[str] = None
+    tratamiento: Optional[str] = None
 
 
 class ConsultaRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
     id_cita: int
-    observaciones: str
+    motivo_consulta: Optional[str] = None
+    examen_fisico: Optional[str] = None
+    condicion_principal: str
+    condiciones_secundarias: Optional[str] = None
+    tratamiento: Optional[str] = None
+    observaciones: Optional[str] = None
     fecha_registro: datetime
 
 
@@ -187,6 +206,8 @@ class UsuarioMedicoPayload(BaseModel):
 class MedicoSinUsuarioPayload(BaseModel):
     nombre: str = Field(min_length=2, max_length=100)
     especialidad: str = Field(min_length=2, max_length=50)
+    especialidad_secundaria_1: Optional[str] = Field(default=None, max_length=50)
+    especialidad_secundaria_2: Optional[str] = Field(default=None, max_length=50)
     telefono: Optional[str] = Field(default=None, max_length=15)
 
 
@@ -200,6 +221,7 @@ class AuditoriaRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
     id_usuario: Optional[int]
+    nombre_usuario: str
     accion: str
     tabla_afectada: str
     id_registro: Optional[int]

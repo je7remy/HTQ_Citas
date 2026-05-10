@@ -82,10 +82,17 @@
             <input type="time" id="nc-hora" required class="input" />
           </div>
         </div>
+        <div id="nc-sugerencia" class="text-soft" style="font-size:12.5px; margin-top:-6px;"></div>
 
         <div class="field">
           <label class="field__label">Motivo</label>
           <input id="nc-motivo" placeholder="Opcional" class="input" />
+        </div>
+
+        <div id="nc-historial-aviso" class="alert alert--info is-hidden">
+          <i data-lucide="history"></i>
+          <span id="nc-historial-texto"></span>
+          <button type="button" id="nc-ver-historial" class="btn btn-ghost btn-sm" style="margin-left:auto;">Ver historial</button>
         </div>
 
         <div id="nc-error" class="alert alert--danger is-hidden">
@@ -160,6 +167,17 @@
           <span></span>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- ══════════════ MODAL: HISTORIAL MÉDICO ══════════════ -->
+  <div id="modal-historial" class="modal-backdrop is-hidden">
+    <div class="modal modal--lg">
+      <div class="modal__header">
+        <h2 class="modal__title">Historial médico de <span id="hm-paciente-nombre">paciente</span></h2>
+        <button type="button" class="modal__close" id="hm-cerrar"><i data-lucide="x"></i></button>
+      </div>
+      <div id="hm-body" class="modal__body stack"></div>
     </div>
   </div>
 
@@ -241,6 +259,18 @@
         headerToolbar: { left: "prev,next today", center: "title", right: "dayGridMonth,timeGridWeek,timeGridDay" },
         slotMinTime: "07:00:00",
         slotMaxTime: "19:00:00",
+        slotLabelFormat: {
+          hour: "numeric",
+          minute: "2-digit",
+          meridiem: "short",
+          hour12: true,
+        },
+        eventTimeFormat: {
+          hour: "numeric",
+          minute: "2-digit",
+          meridiem: "short",
+          hour12: true,
+        },
         allDaySlot: false,
         height: "auto",
         events: async (info, success, failure) => {
@@ -271,7 +301,102 @@
       document.getElementById("nc-paciente-id").value = "";
       document.getElementById("nc-hora").value = "";
       document.getElementById("nc-motivo").value = "";
+      document.getElementById("nc-medico").value = "";
+      document.getElementById("nc-sugerencia").textContent = "";
+      document.getElementById("nc-historial-aviso").classList.add("is-hidden");
       document.getElementById("modal-nueva-cita").classList.remove("is-hidden");
+    }
+
+    async function actualizarAvisoHistorial() {
+      const aviso = document.getElementById("nc-historial-aviso");
+      const texto = document.getElementById("nc-historial-texto");
+      const pacienteId = document.getElementById("nc-paciente-id").value;
+      const medicoId = document.getElementById("nc-medico").value;
+      aviso.classList.add("is-hidden");
+      if (!pacienteId || !medicoId) return;
+      try {
+        const historial = await SGCM.api(`/pacientes/${pacienteId}/historial-medico?medico_id=${medicoId}`);
+        if (historial.length > 0) {
+          texto.textContent = `Este paciente tiene ${historial.length} consulta${historial.length === 1 ? "" : "s"} previa${historial.length === 1 ? "" : "s"} con este médico.`;
+          aviso.classList.remove("is-hidden");
+          lucide.createIcons();
+        }
+      } catch (_) { /* silencioso */ }
+    }
+
+    document.getElementById("nc-medico").addEventListener("change", async (e) => {
+      const sugBox = document.getElementById("nc-sugerencia");
+      sugBox.textContent = "";
+      const id = e.target.value;
+      if (!id) return;
+      try {
+        const sug = await SGCM.api(`/medicos/${id}/proxima-disponibilidad`);
+        if (sug) {
+          document.getElementById("nc-fecha").value = sug.fecha;
+          document.getElementById("nc-hora").value = sug.hora.slice(0, 5);
+          sugBox.textContent = `Sugerencia: ${sug.fecha_legible}, ${sug.hora_legible}. Puede modificarla si lo desea.`;
+        } else {
+          sugBox.style.color = "var(--color-warning, #b45309)";
+          sugBox.textContent = "No hay disponibilidad en los próximos 30 días para este médico. Edite manualmente.";
+        }
+      } catch (_) { /* silencio: no bloquear el modal */ }
+      actualizarAvisoHistorial();
+    });
+
+    document.getElementById("nc-ver-historial").addEventListener("click", () => {
+      const pacienteId = document.getElementById("nc-paciente-id").value;
+      const medicoId = document.getElementById("nc-medico").value;
+      if (pacienteId && medicoId) abrirHistorial(parseInt(pacienteId), parseInt(medicoId));
+    });
+
+    document.getElementById("hm-cerrar").addEventListener("click", () => {
+      document.getElementById("modal-historial").classList.add("is-hidden");
+    });
+
+    async function abrirHistorial(pacienteId, medicoId = null) {
+      const body = document.getElementById("hm-body");
+      const nombreEl = document.getElementById("hm-paciente-nombre");
+      body.innerHTML = `<div class="text-soft">Cargando…</div>`;
+      nombreEl.textContent = `paciente #${pacienteId}`;
+      document.getElementById("modal-historial").classList.remove("is-hidden");
+      try {
+        const [paciente, historial] = await Promise.all([
+          SGCM.api(`/pacientes/${pacienteId}`),
+          SGCM.api(`/pacientes/${pacienteId}/historial-medico` + (medicoId ? `?medico_id=${medicoId}` : "")),
+        ]);
+        nombreEl.textContent = `${paciente.nombre} ${paciente.apellidos}`;
+        if (historial.length === 0) {
+          body.innerHTML = `
+            <div class="empty-state">
+              <div class="empty-state__icon"><i data-lucide="file-x"></i></div>
+              <div class="empty-state__title">Sin consultas previas</div>
+              <div class="empty-state__text">No hay consultas registradas para este paciente.</div>
+            </div>`;
+        } else {
+          body.innerHTML = historial.map((h, i) => {
+            const fechaCorta = h.fecha_consulta.slice(8, 10) + "/" + h.fecha_consulta.slice(5, 7) + "/" + h.fecha_consulta.slice(0, 4);
+            const sec = (label, val) => val ? `<div style="margin-top:6px;"><strong>${label}:</strong> <span class="text-muted">${val}</span></div>` : "";
+            return `
+              <details class="card" style="padding:12px 14px;" ${i === 0 ? "open" : ""}>
+                <summary style="cursor:pointer; font-weight:600;">
+                  ${fechaCorta} · ${h.hora_consulta} · ${SGCM.formatMedicoNombre(h.medico)} (${h.especialidad})
+                  <div class="text-muted" style="font-weight:400; font-size:13px;">${h.condicion_principal || "—"}</div>
+                </summary>
+                <div style="margin-top:10px; font-size:13.5px;">
+                  ${sec("Motivo", h.motivo_consulta)}
+                  ${sec("Examen físico", h.examen_fisico)}
+                  ${sec("Condición principal", h.condicion_principal)}
+                  ${sec("Condiciones secundarias", h.condiciones_secundarias)}
+                  ${sec("Tratamiento", h.tratamiento)}
+                </div>
+              </details>`;
+          }).join("");
+        }
+        lucide.createIcons();
+      } catch (e) {
+        body.innerHTML = `<div class="alert alert--danger"><i data-lucide="alert-circle"></i><span>${e.message}</span></div>`;
+        lucide.createIcons();
+      }
     }
     function cerrarModalNuevaCita() {
       document.getElementById("modal-nueva-cita").classList.add("is-hidden");
@@ -302,6 +427,7 @@
               document.getElementById("nc-paciente-id").value = p.id;
               document.getElementById("nc-busqueda").value = `${SGCM.formatCedula(p.cedula)} — ${p.nombre} ${p.apellidos}`;
               div.innerHTML = "";
+              actualizarAvisoHistorial();
             });
             div.appendChild(item);
           });

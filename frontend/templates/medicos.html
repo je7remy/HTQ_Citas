@@ -156,9 +156,21 @@
               <span class="field__hint">El prefijo "Dr." se añade automáticamente al mostrar.</span>
             </div>
             <div class="field">
-              <label class="field__label">Especialidad *</label>
+              <label class="field__label">Especialidad principal *</label>
               <select id="especialidad" required class="select">
                 <option value="">Seleccione una especialidad…</option>
+              </select>
+            </div>
+            <div class="field">
+              <label class="field__label">Especialidad secundaria 1</label>
+              <select id="especialidad_secundaria_1" class="select">
+                <option value="">(Opcional)</option>
+              </select>
+            </div>
+            <div class="field">
+              <label class="field__label">Especialidad secundaria 2</label>
+              <select id="especialidad_secundaria_2" class="select">
+                <option value="">(Opcional)</option>
               </select>
             </div>
           </div>
@@ -198,9 +210,21 @@
           <input id="em-nombre" required class="input" />
         </div>
         <div class="field">
-          <label class="field__label">Especialidad *</label>
+          <label class="field__label">Especialidad principal *</label>
           <select id="em-especialidad" required class="select">
             <option value="">Seleccione una especialidad…</option>
+          </select>
+        </div>
+        <div class="field">
+          <label class="field__label">Especialidad secundaria 1</label>
+          <select id="em-especialidad-sec-1" class="select">
+            <option value="">(Opcional)</option>
+          </select>
+        </div>
+        <div class="field">
+          <label class="field__label">Especialidad secundaria 2</label>
+          <select id="em-especialidad-sec-2" class="select">
+            <option value="">(Opcional)</option>
           </select>
         </div>
         <div class="field">
@@ -251,8 +275,11 @@
     async function poblarSelectoresEspecialidad() {
       const data = await SGCM.api("/medicos/especialidades");
       const opciones = data.especialidades.map(e => `<option value="${e}">${e}</option>`).join("");
-      document.getElementById("especialidad").insertAdjacentHTML("beforeend", opciones);
-      document.getElementById("em-especialidad").insertAdjacentHTML("beforeend", opciones);
+      const ids = [
+        "especialidad", "especialidad_secundaria_1", "especialidad_secundaria_2",
+        "em-especialidad", "em-especialidad-sec-1", "em-especialidad-sec-2",
+      ];
+      ids.forEach(id => document.getElementById(id).insertAdjacentHTML("beforeend", opciones));
     }
 
     async function cargarMedicos() {
@@ -277,18 +304,29 @@
       const isAdmin = currentUserRol === "admin";
       for (const m of data) {
         const tr = document.createElement("tr");
+        const sec1 = m.especialidad_secundaria_1
+          ? `<span class="badge badge--gray">${m.especialidad_secundaria_1}</span>` : "";
+        const sec2 = m.especialidad_secundaria_2
+          ? `<span class="badge badge--gray">${m.especialidad_secundaria_2}</span>` : "";
+        const editAttrs = [
+          `data-id="${m.id}"`,
+          `data-nombre="${m.nombre}"`,
+          `data-especialidad="${m.especialidad}"`,
+          `data-secundaria-1="${m.especialidad_secundaria_1 || ''}"`,
+          `data-secundaria-2="${m.especialidad_secundaria_2 || ''}"`,
+          `data-telefono="${m.telefono || ''}"`,
+          `data-activo="${m.activo}"`,
+        ].join(" ");
         tr.innerHTML = `
           <td><strong>${SGCM.formatMedicoNombre(m.nombre)}</strong></td>
-          <td><span class="badge badge--teal">${m.especialidad}</span></td>
+          <td><span class="badge badge--teal">${m.especialidad}</span> ${sec1} ${sec2}</td>
           <td class="mono">${m.telefono ? SGCM.formatTelefono(m.telefono) : "—"}</td>
           <td class="text-right">
             <span class="row-actions">
               <button data-id="${m.id}" data-nombre="${m.nombre}" class="ver-btn icon-btn" title="Horarios">
                 <i data-lucide="clock"></i>
               </button>
-              ${isAdmin ? `<button data-id="${m.id}" data-nombre="${m.nombre}" data-especialidad="${m.especialidad}"
-                data-telefono="${m.telefono || ''}" data-activo="${m.activo}"
-                class="edit-btn icon-btn" title="Editar"><i data-lucide="pencil"></i></button>` : ""}
+              ${isAdmin ? `<button ${editAttrs} class="edit-btn icon-btn" title="Editar"><i data-lucide="pencil"></i></button>` : ""}
             </span>
           </td>`;
         tbody.appendChild(tr);
@@ -420,11 +458,19 @@
       const telefono     = SGCM.stripDigits(document.getElementById("telefono").value) || null;
 
       try {
+        const sec1 = document.getElementById("especialidad_secundaria_1").value || null;
+        const sec2 = document.getElementById("especialidad_secundaria_2").value || null;
         if (modoCreacion === "vincular") {
           const idUsuario = document.getElementById("id_usuario").value;
           await SGCM.api("/medicos", {
             method: "POST",
-            body: JSON.stringify({ id_usuario: idUsuario ? parseInt(idUsuario) : null, nombre, especialidad, telefono }),
+            body: JSON.stringify({
+              id_usuario: idUsuario ? parseInt(idUsuario) : null,
+              nombre, especialidad,
+              especialidad_secundaria_1: sec1,
+              especialidad_secundaria_2: sec2,
+              telefono,
+            }),
           });
         } else {
           const nombreUsuario = document.getElementById("nuevo-nombre-usuario").value.trim();
@@ -436,7 +482,15 @@
           }
           await SGCM.api("/medicos/con-usuario", {
             method: "POST",
-            body: JSON.stringify({ usuario: { nombre: nombreUsuario, email, password }, medico: { nombre, especialidad, telefono } }),
+            body: JSON.stringify({
+              usuario: { nombre: nombreUsuario, email, password },
+              medico: {
+                nombre, especialidad,
+                especialidad_secundaria_1: sec1,
+                especialidad_secundaria_2: sec2,
+                telefono,
+              },
+            }),
           });
         }
         modalNuevo.classList.add("is-hidden");
@@ -472,6 +526,8 @@
       const selEsp = document.getElementById("em-especialidad");
       selEsp.value = data.especialidad;
       if (!selEsp.value) selEsp.value = "";
+      document.getElementById("em-especialidad-sec-1").value = data.secundaria1 || data["secundaria-1"] || "";
+      document.getElementById("em-especialidad-sec-2").value = data.secundaria2 || data["secundaria-2"] || "";
       document.getElementById("em-telefono").value = SGCM.formatTelefono(data.telefono);
       document.getElementById("em-activo").checked = data.activo === "true";
       document.getElementById("em-error").classList.add("is-hidden");
@@ -489,6 +545,8 @@
           body: JSON.stringify({
             nombre: document.getElementById("em-nombre").value,
             especialidad: document.getElementById("em-especialidad").value,
+            especialidad_secundaria_1: document.getElementById("em-especialidad-sec-1").value || null,
+            especialidad_secundaria_2: document.getElementById("em-especialidad-sec-2").value || null,
             telefono: SGCM.stripDigits(document.getElementById("em-telefono").value) || null,
             activo: document.getElementById("em-activo").checked,
           }),

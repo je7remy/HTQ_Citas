@@ -27,6 +27,8 @@ def _crear_paciente(client) -> int:
             "cedula": "00112345678",
             "nombre": "Ana",
             "apellidos": "García",
+            "sexo": "femenino",
+            "fecha_nacimiento": "1990-04-12",
             "telefono": "8095550100",
         },
     )
@@ -41,6 +43,42 @@ def _logs(session: Session, tabla: str | None = None, accion: AccionAuditoria | 
     if accion:
         stmt = stmt.where(Auditoria.accion == accion)
     return session.exec(stmt).all()
+
+
+# ---------- Mejora 2.3: nombre_usuario denormalizado ----------
+def test_auditoria_captura_nombre_usuario_al_crear_paciente(client, session, auth_as, seed_users):
+    """Al crear paciente como secretaria, el log debe incluir el nombre de la secretaria."""
+    auth_as("secretaria")
+    _crear_paciente(client)
+    logs = _logs(session, tabla="pacientes", accion=AccionAuditoria.CREATE)
+    assert len(logs) == 1
+    assert logs[0].nombre_usuario == seed_users["secretaria"].nombre  # "Secre Test"
+
+
+def test_auditoria_endpoint_expone_nombre_usuario(client, auth_as, session):
+    """GET /auditoria devuelve cada item con campo nombre_usuario."""
+    auth_as("secretaria")
+    _crear_paciente(client)
+
+    auth_as("admin")
+    res = client.get("/api/v1/auditoria?tabla=pacientes")
+    assert res.status_code == 200
+    items = res.json()["items"]
+    assert items
+    assert all("nombre_usuario" in i for i in items)
+    assert any(i["nombre_usuario"] == "Secre Test" for i in items)
+
+
+def test_auditoria_login_captura_nombre_usuario(client, session, seed_users):
+    """El log de LOGIN debe contener el nombre del usuario que se autenticó."""
+    res = client.post(
+        "/api/v1/auth/login",
+        data={"username": "admin@test.do", "password": TEST_PASSWORD},
+    )
+    assert res.status_code == 200
+    logs = _logs(session, tabla="usuarios", accion=AccionAuditoria.LOGIN)
+    assert len(logs) == 1
+    assert logs[0].nombre_usuario == seed_users["admin"].nombre  # "Admin Test"
 
 
 # ---------- LOGIN ----------
@@ -114,6 +152,8 @@ def test_e007_fallo_no_deja_log_huerfano(client, session, auth_as):
             "cedula": "00112345678",
             "nombre": "Otro",
             "apellidos": "Apellidos",
+            "sexo": "masculino",
+            "fecha_nacimiento": "1985-01-01",
             "telefono": "8090000000",
         },
     )
@@ -273,6 +313,8 @@ def test_cu15_paginacion(client, auth_as):
                 "cedula": f"0011234567{i}",
                 "nombre": f"Paciente{i}",
                 "apellidos": "Apellidos",
+                "sexo": "otro",
+                "fecha_nacimiento": "1990-01-01",
                 "telefono": "8090000000",
             },
         )

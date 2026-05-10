@@ -227,3 +227,78 @@ def test_crear_con_usuario_especialidad_invalida_retorna_422(client, auth_as, se
     )
     assert res.status_code == 422, res.text
     assert "Especialidad inválida" in res.json()["detail"]
+
+
+# ── Especialidades secundarias (Mejora 2.2) ─────────────────────────────────
+
+def test_crear_medico_con_3_especialidades_validas(client, auth_as, seed_users):
+    """POST /medicos con principal + 2 secundarias válidas y distintas → 201."""
+    auth_as("admin")
+    nuevo = _crear_usuario_medico(client, email="dr.tres.esp@test.do")
+    res = client.post(
+        "/api/v1/medicos",
+        json={
+            "id_usuario": nuevo["id"],
+            "nombre": "Multi Esp",
+            "especialidad": _ESP_VALIDA,
+            "especialidad_secundaria_1": _ESP_VALIDA2,
+            "especialidad_secundaria_2": "Medicina Interna",
+        },
+    )
+    assert res.status_code == 201, res.text
+    body = res.json()
+    assert body["especialidad"] == _ESP_VALIDA
+    assert body["especialidad_secundaria_1"] == _ESP_VALIDA2
+    assert body["especialidad_secundaria_2"] == "Medicina Interna"
+
+
+def test_crear_medico_principal_igual_a_secundaria_retorna_422(client, auth_as, seed_users):
+    """Si principal == secundaria_1 → 422."""
+    auth_as("admin")
+    nuevo = _crear_usuario_medico(client, email="dr.dup.esp@test.do")
+    res = client.post(
+        "/api/v1/medicos",
+        json={
+            "id_usuario": nuevo["id"],
+            "nombre": "Dup Esp",
+            "especialidad": _ESP_VALIDA,
+            "especialidad_secundaria_1": _ESP_VALIDA,
+        },
+    )
+    assert res.status_code == 422
+    assert "distintas" in res.json()["detail"].lower()
+
+
+def test_crear_medico_secundaria_invalida_retorna_422(client, auth_as, seed_users):
+    """Una secundaria fuera de la lista oficial → 422."""
+    auth_as("admin")
+    nuevo = _crear_usuario_medico(client, email="dr.sec.inv@test.do")
+    res = client.post(
+        "/api/v1/medicos",
+        json={
+            "id_usuario": nuevo["id"],
+            "nombre": "Sec Inv",
+            "especialidad": _ESP_VALIDA,
+            "especialidad_secundaria_1": "Cardiología",  # inexistente
+        },
+    )
+    assert res.status_code == 422
+    assert "Especialidad inválida" in res.json()["detail"]
+
+
+def test_crear_medico_solo_principal_funciona(client, auth_as, seed_users):
+    """Las secundarias son opcionales; debería poder crearse sin ellas."""
+    auth_as("admin")
+    nuevo = _crear_usuario_medico(client, email="dr.solo.princ@test.do")
+    res = client.post(
+        "/api/v1/medicos",
+        json={
+            "id_usuario": nuevo["id"],
+            "nombre": "Solo Principal",
+            "especialidad": _ESP_VALIDA,
+        },
+    )
+    assert res.status_code == 201, res.text
+    body = res.json()
+    assert body["especialidad_secundaria_1"] is None
+    assert body["especialidad_secundaria_2"] is None

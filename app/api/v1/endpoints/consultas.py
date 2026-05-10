@@ -75,7 +75,14 @@ def registrar_consulta(
         if cita.id_medico != medico.id:
             raise HTTPException(403, "Solo puede registrar consultas de sus propias citas.")
 
-    consulta = Consulta(id_cita=payload.id_cita, observaciones=payload.observaciones)
+    consulta = Consulta(
+        id_cita=payload.id_cita,
+        motivo_consulta=payload.motivo_consulta,
+        examen_fisico=payload.examen_fisico,
+        condicion_principal=payload.condicion_principal,
+        condiciones_secundarias=payload.condiciones_secundarias,
+        tratamiento=payload.tratamiento,
+    )
     session.add(consulta)
 
     cita.estado = EstadoCita.atendida
@@ -89,7 +96,7 @@ def registrar_consulta(
 
     registrar_auditoria(
         session,
-        id_usuario=user.id,
+        usuario=user,
         accion=AccionAuditoria.CREATE,
         tabla="consultas",
         id_registro=consulta.id,
