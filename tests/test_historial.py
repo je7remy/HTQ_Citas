@@ -1,5 +1,7 @@
 """Tests del endpoint de historial médico (Mejora 3.3)."""
-from datetime import date, timedelta
+from datetime import date, time, timedelta
+
+from app.models import Cita
 
 
 def _pasado_lunes(offset_semanas: int = 0) -> date:
@@ -27,19 +29,28 @@ def _crear_paciente(client, auth_as, cedula="00112345678") -> int:
     return res.json()["id"]
 
 
-def _crear_consulta(client, auth_as, seed_users, paciente_id, hora="09:00:00", offset_semanas=0):
-    auth_as("secretaria")
-    cita_res = client.post(
-        "/api/v1/citas",
-        json={
-            "id_paciente": paciente_id,
-            "id_medico": seed_users["medico"].id,
-            "fecha": _pasado_lunes(offset_semanas).isoformat(),
-            "hora": hora,
-        },
+def _insertar_cita_pasada(session, seed_users, paciente_id: int, hora_str: str, offset_semanas: int = 0) -> int:
+    """Inserta una cita en lunes pasado vía ORM (saltando POST /citas).
+
+    POST /api/v1/citas rechaza fechas/hora pasadas. Para tests de historial
+    necesitamos citas "vencidas naturalmente", así que las creamos directo en BD.
+    """
+    h, m, s = (int(x) for x in hora_str.split(":"))
+    cita = Cita(
+        id_paciente=paciente_id,
+        id_medico=seed_users["medico"].id,
+        fecha=_pasado_lunes(offset_semanas),
+        hora=time(h, m, s),
+        id_secretaria=seed_users["secretaria"].id,
     )
-    assert cita_res.status_code == 201, cita_res.text
-    cita_id = cita_res.json()["id"]
+    session.add(cita)
+    session.commit()
+    session.refresh(cita)
+    return cita.id
+
+
+def _crear_consulta(client, auth_as, seed_users, session, paciente_id, hora="09:00:00", offset_semanas=0):
+    cita_id = _insertar_cita_pasada(session, seed_users, paciente_id, hora, offset_semanas)
     auth_as("medico")
     res = client.post(
         "/api/v1/consultas",
@@ -49,11 +60,11 @@ def _crear_consulta(client, auth_as, seed_users, paciente_id, hora="09:00:00", o
     return res.json()
 
 
-def test_historial_lista_consultas_orden_desc(client, auth_as, seed_users):
+def test_historial_lista_consultas_orden_desc(client, auth_as, seed_users, session):
     """El historial devuelve las consultas atendidas ordenadas por fecha DESC."""
     paciente_id = _crear_paciente(client, auth_as)
-    _crear_consulta(client, auth_as, seed_users, paciente_id, hora="09:00:00", offset_semanas=2)
-    _crear_consulta(client, auth_as, seed_users, paciente_id, hora="10:00:00", offset_semanas=0)
+    _crear_consulta(client, auth_as, seed_users, session, paciente_id, hora="09:00:00", offset_semanas=2)
+    _crear_consulta(client, auth_as, seed_users, session, paciente_id, hora="10:00:00", offset_semanas=0)
 
     auth_as("secretaria")
     res = client.get(f"/api/v1/pacientes/{paciente_id}/historial-medico")
@@ -66,10 +77,10 @@ def test_historial_lista_consultas_orden_desc(client, auth_as, seed_users):
     assert f0 >= f1
 
 
-def test_historial_filtra_por_medico(client, auth_as, seed_users):
+def test_historial_filtra_por_medico(client, auth_as, seed_users, session):
     """El parámetro medico_id filtra correctamente."""
     paciente_id = _crear_paciente(client, auth_as)
-    _crear_consulta(client, auth_as, seed_users, paciente_id)
+    _crear_consulta(client, auth_as, seed_users, session, paciente_id)
 
     medico_id = seed_users["medico"].id
     auth_as("secretaria")
@@ -100,20 +111,10 @@ def test_historial_paciente_inexistente_retorna_404(client, auth_as):
     assert res.status_code == 404
 
 
-def test_historial_incluye_los_5_campos_clinicos(client, auth_as, seed_users):
+def test_historial_incluye_los_5_campos_clinicos(client, auth_as, seed_users, session):
     """Cada item del historial expone los 5 campos del diagnóstico estructurado."""
     paciente_id = _crear_paciente(client, auth_as)
-    auth_as("secretaria")
-    cita_res = client.post(
-        "/api/v1/citas",
-        json={
-            "id_paciente": paciente_id,
-            "id_medico": seed_users["medico"].id,
-            "fecha": _pasado_lunes().isoformat(),
-            "hora": "09:00:00",
-        },
-    )
-    cita_id = cita_res.json()["id"]
+    cita_id = _insertar_cita_pasada(session, seed_users, paciente_id, "09:00:00")
     auth_as("medico")
     client.post(
         "/api/v1/consultas",

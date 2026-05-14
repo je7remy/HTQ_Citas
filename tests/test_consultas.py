@@ -1,5 +1,7 @@
 """Tests Mejora 2: bloqueo de consulta antes del horario programado de la cita."""
-from datetime import date, timedelta
+from datetime import date, time, timedelta
+
+from app.models import Cita
 
 
 def _proximo_lunes() -> date:
@@ -36,6 +38,27 @@ def _crear_paciente(client) -> int:
     return res.json()["id"]
 
 
+def _insertar_cita_pasada(session, seed_users, paciente_id: int, hora_str: str = "09:00:00") -> int:
+    """Inserta una cita en lunes pasado vía ORM (saltando la validación de POST /citas).
+
+    POST /api/v1/citas rechaza fechas/hora pasadas (fix del bug nocturno).
+    Para tests de consultas/historial necesitamos una cita "pasada" como si ya
+    hubiera vencido naturalmente, así que la creamos directamente en la BD.
+    """
+    h, m, s = (int(x) for x in hora_str.split(":"))
+    cita = Cita(
+        id_paciente=paciente_id,
+        id_medico=seed_users["medico"].id,
+        fecha=_pasado_lunes(),
+        hora=time(h, m, s),
+        id_secretaria=seed_users["secretaria"].id,
+    )
+    session.add(cita)
+    session.commit()
+    session.refresh(cita)
+    return cita.id
+
+
 def test_registrar_consulta_cita_futura_retorna_400(client, auth_as, seed_users):
     """POST /consultas con cita en fecha futura debe retornar 400."""
     auth_as("secretaria")
@@ -61,21 +84,11 @@ def test_registrar_consulta_cita_futura_retorna_400(client, auth_as, seed_users)
     assert "antes del horario" in res.json()["detail"]
 
 
-def test_registrar_consulta_cita_pasada_retorna_201(client, auth_as, seed_users):
+def test_registrar_consulta_cita_pasada_retorna_201(client, auth_as, seed_users, session):
     """POST /consultas con cita en fecha pasada debe retornar 201."""
     auth_as("secretaria")
     paciente_id = _crear_paciente(client)
-    cita_res = client.post(
-        "/api/v1/citas",
-        json={
-            "id_paciente": paciente_id,
-            "id_medico": seed_users["medico"].id,
-            "fecha": _pasado_lunes().isoformat(),
-            "hora": "09:00:00",
-        },
-    )
-    assert cita_res.status_code == 201, cita_res.text
-    cita_id = cita_res.json()["id"]
+    cita_id = _insertar_cita_pasada(session, seed_users, paciente_id)
 
     auth_as("medico")
     res = client.post(
@@ -87,33 +100,23 @@ def test_registrar_consulta_cita_pasada_retorna_201(client, auth_as, seed_users)
 
 
 # ---------- Mejora 3.2: diagnóstico estructurado ----------
-def _crear_cita_pasada(client, seed_users) -> int:
+def _crear_cita_pasada(client, seed_users, session) -> int:
     """Helper: crea paciente y cita en lunes pasado para poder registrar consulta."""
     paciente_id = _crear_paciente(client)
-    res = client.post(
-        "/api/v1/citas",
-        json={
-            "id_paciente": paciente_id,
-            "id_medico": seed_users["medico"].id,
-            "fecha": _pasado_lunes().isoformat(),
-            "hora": "09:00:00",
-        },
-    )
-    assert res.status_code == 201, res.text
-    return res.json()["id"]
+    return _insertar_cita_pasada(session, seed_users, paciente_id)
 
 
-def test_consulta_sin_condicion_principal_retorna_422(client, auth_as, seed_users):
+def test_consulta_sin_condicion_principal_retorna_422(client, auth_as, seed_users, session):
     auth_as("secretaria")
-    cita_id = _crear_cita_pasada(client, seed_users)
+    cita_id = _crear_cita_pasada(client, seed_users, session)
     auth_as("medico")
     res = client.post("/api/v1/consultas", json={"id_cita": cita_id})
     assert res.status_code == 422
 
 
-def test_consulta_solo_condicion_principal_funciona(client, auth_as, seed_users):
+def test_consulta_solo_condicion_principal_funciona(client, auth_as, seed_users, session):
     auth_as("secretaria")
-    cita_id = _crear_cita_pasada(client, seed_users)
+    cita_id = _crear_cita_pasada(client, seed_users, session)
     auth_as("medico")
     res = client.post(
         "/api/v1/consultas",
@@ -125,10 +128,10 @@ def test_consulta_solo_condicion_principal_funciona(client, auth_as, seed_users)
     assert body["motivo_consulta"] is None
 
 
-def test_consulta_completa_5_campos(client, auth_as, seed_users):
+def test_consulta_completa_5_campos(client, auth_as, seed_users, session):
     """POST /consultas con los 5 campos clínicos los persiste y los devuelve."""
     auth_as("secretaria")
-    cita_id = _crear_cita_pasada(client, seed_users)
+    cita_id = _crear_cita_pasada(client, seed_users, session)
     auth_as("medico")
     payload = {
         "id_cita": cita_id,

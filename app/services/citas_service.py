@@ -1,9 +1,10 @@
 """Lógica de negocio para citas: validación de disponibilidad."""
-from datetime import date, time
+from datetime import date, datetime, time
 
 from fastapi import HTTPException
 from sqlmodel import Session, select
 
+from app.core.datetime_utils import TZ_DOMINICANA, ahora_local
 from app.models import Cita, EstadoCita, Horario, Medico, Paciente
 
 
@@ -19,6 +20,8 @@ def validar_disponibilidad(
     """Valida que la cita pueda crearse:
     - Médico existe y está activo.
     - Paciente existe.
+    - La fecha+hora completa de la cita NO es en el pasado (compara contra
+      ahora_local() — nunca solo la hora del día).
     - La hora cae dentro de un horario activo del médico para ese día.
     - No hay otra cita pendiente/atendida en el mismo slot (defensa en profundidad
       sobre la restricción UNIQUE de la BD).
@@ -29,6 +32,15 @@ def validar_disponibilidad(
 
     if not session.get(Paciente, id_paciente):
         raise HTTPException(404, "Paciente no encontrado.")
+
+    # Comparar SIEMPRE fecha+hora completa. Comparar solo `hora` rechazaría
+    # incorrectamente, a las 11 PM, una cita para mañana a las 09 AM
+    # (porque 09:00 < 23:00) aunque ese instante todavía es futuro.
+    fecha_hora_cita = datetime.combine(fecha, hora, tzinfo=TZ_DOMINICANA)
+    if fecha_hora_cita < ahora_local():
+        raise HTTPException(
+            409, "No se puede crear una cita en una fecha/hora ya pasada."
+        )
 
     # ISO weekday: lunes=1 ... domingo=7 (coincide con la convención de la tesis)
     dia_semana = fecha.isoweekday()

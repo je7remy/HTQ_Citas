@@ -346,4 +346,4 @@ La Vega, República Dominicana — 2026
 
 ## Versión
 
-**SGCM v13.1** — Mayo 2026
+**SGCM v22.1** — Mayo 2026
