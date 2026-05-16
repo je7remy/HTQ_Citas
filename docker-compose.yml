@@ -25,14 +25,16 @@ services:
     env_file: .env
     environment:
       TZ: America/Santo_Domingo
+      # SGCM_SEED: 'true' pobla la BD con datos del HTQPJB en cada arranque.
+      # Default seguro (false) para producción — sobreescribir en .env para dev/demos.
+      SGCM_SEED: ${SGCM_SEED:-false}
     depends_on:
       db:
         condition: service_healthy
     expose:
       - "8000"
-    command: >
-      sh -c "python -m scripts.seed &&
-             uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2"
+    # El entrypoint (docker-entrypoint.sh) decide si correr seed según SGCM_SEED
+    # y luego ejecuta el CMD (uvicorn). Mantenemos el CMD por defecto del Dockerfile.
 
   nginx:
     image: nginx:1.27-alpine

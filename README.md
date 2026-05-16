@@ -183,13 +183,63 @@ Acceder a `http://localhost/` en el navegador.
 
 ### Credenciales de demostración
 
+El comando `python -m app.scripts.seed_db` (también ejecutable en automático con `SGCM_SEED=true`) crea el siguiente conjunto de cuentas:
+
 |Rol|Email|Contraseña|
 |---|---|---|
-|Administrador|`admin@htqpjb.gob.do`|`Admin*2026`|
-|Secretaria|`secretaria@htqpjb.gob.do`|`Secret*2026`|
-|Médico|`jperez@htqpjb.gob.do`|`Medico*2026`|
+|Administrador|`admin@htqpjb.gob.do`|`Admin123!`|
+|Secretaria|`secretaria.maria@htqpjb.gob.do`|`Secretaria123!`|
+|Secretaria|`secretaria.juana@htqpjb.gob.do`|`Secretaria123!`|
+|Secretaria|`secretaria.elena@htqpjb.gob.do`|`Secretaria123!`|
+|Secretaria|`secretaria.rosa@htqpjb.gob.do`|`Secretaria123!`|
+|Médico (Ortopedia)|`dr.jperez@htqpjb.gob.do`|`Medico123!`|
+|Médico (Medicina Interna)|`dra.aramirez@htqpjb.gob.do`|`Medico123!`|
+|Médico (Cirugía General)|`dr.cgarcia@htqpjb.gob.do`|`Medico123!`|
+|Médico (Oftalmología)|`dra.lcastillo@htqpjb.gob.do`|`Medico123!`|
+|Médico (Neurocirugía)|`dr.rsantos@htqpjb.gob.do`|`Medico123!`|
+|Médico inactivo (prueba)|`dr.inactivo@htqpjb.gob.do`|`Medico123!`|
 
 > **Importante:** cambiar inmediatamente todas las contraseñas tras la primera puesta en marcha en producción.
+
+### Datos de demostración (seeders)
+
+El módulo `app.db.seed` puebla la base de datos del HTQPJB con datos realistas para que el sistema sea usable desde el primer arranque. Cada función es **idempotente**: ejecutarla dos veces no duplica datos.
+
+|Entidad|Cantidad|Detalles|
+|---|---|---|
+|Usuarios|11|1 admin + 4 secretarias + 5 médicos activos + 1 médico inactivo|
+|Médicos|9 (8 activos + 1 inactivo)|Cubren 11 de las 18 especialidades oficiales|
+|Horarios|L-V mañana/tarde y sábados mañana|7:00–12:00 y 14:00–17:00 entre semana; 8:00–12:00 los sábados|
+|Pacientes|40|Cédulas dominicanas con dígito verificador real, edades 5–85, los 4 valores de sexo|
+|Citas|50|30% pendientes futuras, 30% atendidas pasadas, 10% canceladas, 30% próximos 3 días|
+|Consultas|≥15|Una por cada cita atendida, con los 5 campos clínicos plausibles según especialidad|
+|Auditoría|Coherente|Cada inserción del seed deja un registro en `auditoria`|
+
+#### Ejecución manual
+
+```bash
+# Seed completo (idempotente, no duplica)
+docker exec sgcm_api python -m app.scripts.seed_db
+
+# Resetear datos y volver a sembrar (peligroso, solo dev)
+docker exec sgcm_api python -m app.scripts.seed_db --reset
+
+# Sembrar solo una sección
+docker exec sgcm_api python -m app.scripts.seed_db --solo pacientes
+```
+
+Secciones válidas para `--solo`: `usuarios`, `medicos`, `horarios`, `pacientes`, `citas`, `consultas`.
+
+#### Ejecución automática en cada arranque
+
+El contenedor `sgcm_api` corre `docker-entrypoint.sh` antes de iniciar el servidor. Si la variable de entorno **`SGCM_SEED=true`** está definida (en `.env`), el seed se ejecuta automáticamente en cada `docker compose up`. Por defecto **`SGCM_SEED=false`** para evitar que el seed se ejecute en producción.
+
+```bash
+# .env para entornos de desarrollo o demos
+SGCM_SEED=true
+```
+
+> Idempotencia y producción: ejecutar el seed en una BD ya poblada **no es destructivo** — cada función comprueba antes de insertar. Aun así, lo recomendado en producción es dejar `SGCM_SEED=false` y poblar manualmente solo la primera vez.
 
 ---
 
@@ -200,11 +250,13 @@ sgcm/
 ├── app/                          Backend Python
 │   ├── api/v1/                   Endpoints REST
 │   ├── core/                     Configuración y seguridad (JWT, bcrypt)
-│   ├── db/                       Sesión SQLAlchemy
+│   ├── db/                       Sesión SQLAlchemy + seeders (seed.py)
 │   ├── models/                   Modelos SQLModel (tablas)
+│   ├── scripts/                  CLI: seed_db.py (pobla datos del HTQPJB)
 │   ├── services/                 Lógica de negocio
 │   ├── templates/reportes/       Templates HTML para PDFs
 │   └── main.py                   Punto de entrada FastAPI
+├── docker-entrypoint.sh          Inicializa esquema y ejecuta seed si SGCM_SEED=true
 ├── alembic/                      Migraciones de base de datos
 ├── frontend/
 │   ├── static/

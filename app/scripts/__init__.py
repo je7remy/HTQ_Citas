@@ -1,0 +1,1 @@
+"""Scripts CLI del SGCM."""
