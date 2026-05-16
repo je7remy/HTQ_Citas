@@ -191,6 +191,7 @@ const SGCM = (() => {
     { key: 'medicos',    label: 'Médicos',     href: '/medicos.html',    icon: 'stethoscope',   role: null },
     { key: 'agenda',     label: 'Mi Agenda',   href: '/agenda.html',     icon: 'clipboard-list', role: 'medico' },
     { key: 'usuarios',   label: 'Usuarios',    href: '/usuarios.html',   icon: 'shield-check',  role: 'admin' },
+    { key: 'reportes',   label: 'Reportes',    href: '/reportes-usuarios.html', icon: 'bar-chart-3', role: 'admin' },
     { key: 'auditoria',  label: 'Auditoría',   href: '/auditoria.html',  icon: 'file-search',   role: 'admin' },
   ];
 

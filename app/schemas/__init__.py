@@ -235,3 +235,37 @@ class AuditoriaPage(BaseModel):
     limit: int
     offset: int
     items: list[AuditoriaRead]
+
+
+# ============ Reportes administrativos ============
+class RolStats(BaseModel):
+    total: int
+    activos: int
+    inactivos: int
+
+
+class UsuariosResumen(BaseModel):
+    total_usuarios: int
+    por_rol: dict[str, dict[str, int]]
+    fecha_generacion: datetime
+
+
+class MedicoDetalleStats(BaseModel):
+    id: int
+    nombre: str
+    especialidad: str
+    especialidades_secundarias: list[str]
+    total_citas: int
+    total_consultas: int
+    citas_atendidas: int
+    citas_canceladas: int
+    citas_pendientes: int
+    tasa_atendidas: float
+    tasa_canceladas: float
+    dias_disponibilidad: int
+
+
+class MedicosDetalleResponse(BaseModel):
+    total_medicos: int
+    medicos: list[MedicoDetalleStats]
+    fecha_generacion: datetime

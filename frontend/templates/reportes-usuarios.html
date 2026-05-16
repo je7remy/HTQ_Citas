@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SGCM — Reportes administrativos</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <link rel="stylesheet" href="/static/css/sgcm.css" />
+</head>
+<body>
+  <main id="page-main">
+    <div class="page-header">
+      <div>
+        <h1 class="page-header__title">Reportes administrativos</h1>
+        <p class="page-header__sub">Resumen de usuarios del sistema agrupados por rol, con opciones de descarga.</p>
+      </div>
+      <div class="page-header__actions">
+        <button id="btn-excel" class="btn btn-ghost">
+          <i data-lucide="file-spreadsheet"></i>
+          <span>Exportar Excel</span>
+        </button>
+        <button id="btn-pdf" class="btn btn-primary">
+          <i data-lucide="file-text"></i>
+          <span>Generar PDF</span>
+        </button>
+      </div>
+    </div>
+
+    <div id="error-box" class="alert alert--danger is-hidden" style="margin-bottom:18px;">
+      <i data-lucide="alert-circle"></i>
+      <span></span>
+    </div>
+
+    <!-- Tarjetas KPI -->
+    <section class="grid-4" style="margin-bottom:22px;">
+      <div class="stat-card stat-card--total">
+        <div class="stat-card__icon"><i data-lucide="users"></i></div>
+        <div class="stat-card__meta">
+          <span class="stat-card__label">Total usuarios</span>
+          <span class="stat-card__value" id="kpi-total">—</span>
+          <span class="stat-card__hint" id="kpi-fecha">—</span>
+        </div>
+      </div>
+      <div class="stat-card stat-card--admin">
+        <div class="stat-card__icon"><i data-lucide="shield"></i></div>
+        <div class="stat-card__meta">
+          <span class="stat-card__label">Administradores</span>
+          <span class="stat-card__value" id="kpi-admin">—</span>
+          <span class="stat-card__hint" id="kpi-admin-hint">—</span>
+        </div>
+      </div>
+      <div class="stat-card stat-card--secretaria">
+        <div class="stat-card__icon"><i data-lucide="user"></i></div>
+        <div class="stat-card__meta">
+          <span class="stat-card__label">Secretarias</span>
+          <span class="stat-card__value" id="kpi-secretaria">—</span>
+          <span class="stat-card__hint" id="kpi-secretaria-hint">—</span>
+        </div>
+      </div>
+      <div class="stat-card stat-card--medico">
+        <div class="stat-card__icon"><i data-lucide="stethoscope"></i></div>
+        <div class="stat-card__meta">
+          <span class="stat-card__label">Médicos</span>
+          <span class="stat-card__value" id="kpi-medico">—</span>
+          <span class="stat-card__hint" id="kpi-medico-hint">—</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Filtros + tabla -->
+    <section class="card">
+      <div class="card__header">
+        <div>
+          <div class="card__title">Detalle de usuarios</div>
+          <div class="card__sub" id="detalle-total">—</div>
+        </div>
+        <div class="row" style="gap:10px;">
+          <select id="f-rol" class="select" style="min-width:160px;">
+            <option value="">Todos los roles</option>
+            <option value="admin">Administradores</option>
+            <option value="secretaria">Secretarias</option>
+            <option value="medico">Médicos</option>
+          </select>
+          <select id="f-estado" class="select" style="min-width:140px;">
+            <option value="">Todos los estados</option>
+            <option value="activo">Activos</option>
+            <option value="inactivo">Inactivos</option>
+          </select>
+        </div>
+      </div>
+      <div class="card__body" style="padding:0;">
+        <div class="table-wrap" style="border:none; border-radius:0;">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Nombre</th>
+                <th>Email</th>
+                <th>Rol</th>
+                <th>Estado</th>
+                <th>Fecha de creación</th>
+              </tr>
+            </thead>
+            <tbody id="tbody-usuarios"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="/static/js/app.js"></script>
+  <script>
+    const ROL_BADGE = {
+      admin:      "badge--purple",
+      secretaria: "badge--teal",
+      medico:     "badge--blue",
+    };
+
+    let usuariosCache = [];
+    let resumenCache = null;
+
+    function setAlert(box, msg) {
+      box.querySelector("span").textContent = msg;
+      box.classList.remove("is-hidden");
+      lucide.createIcons();
+    }
+
+    (async () => {
+      const me = await SGCM.mountShell({ active: 'reportes', pageTitle: 'Reportes' });
+      if (!me) return;
+      if (me.rol !== "admin") {
+        setAlert(
+          document.getElementById("error-box"),
+          "Esta pantalla es solo para administradores."
+        );
+        return;
+      }
+      try {
+        await Promise.all([cargarResumen(), cargarUsuarios()]);
+      } catch (err) {
+        setAlert(document.getElementById("error-box"), err.message);
+      }
+      lucide.createIcons();
+    })();
+
+    function _stat(stats, keyAct, keyInact) {
+      const act = stats[keyAct] ?? 0;
+      const inact = stats[keyInact] ?? 0;
+      return `${act} ${keyAct} · ${inact} ${keyInact}`;
+    }
+
+    async function cargarResumen() {
+      const data = await SGCM.api("/reportes/usuarios/resumen");
+      resumenCache = data;
+      document.getElementById("kpi-total").textContent = data.total_usuarios;
+      document.getElementById("kpi-fecha").textContent =
+        "Actualizado " + SGCM.formatFechaHora(data.fecha_generacion);
+
+      const admin = data.por_rol.admin || {total:0, activos:0, inactivos:0};
+      const sec   = data.por_rol.secretaria || {total:0, activas:0, inactivas:0};
+      const med   = data.por_rol.medico || {total:0, activos:0, inactivos:0};
+
+      document.getElementById("kpi-admin").textContent = admin.total;
+      document.getElementById("kpi-admin-hint").textContent =
+        _stat(admin, "activos", "inactivos");
+
+      document.getElementById("kpi-secretaria").textContent = sec.total;
+      document.getElementById("kpi-secretaria-hint").textContent =
+        _stat(sec, "activas", "inactivas");
+
+      document.getElementById("kpi-medico").textContent = med.total;
+      document.getElementById("kpi-medico-hint").textContent =
+        _stat(med, "activos", "inactivos");
+    }
+
+    async function cargarUsuarios() {
+      usuariosCache = await SGCM.api("/usuarios");
+      pintarTabla();
+    }
+
+    function pintarTabla() {
+      const rol = document.getElementById("f-rol").value;
+      const estado = document.getElementById("f-estado").value;
+      let filtrados = usuariosCache;
+      if (rol) filtrados = filtrados.filter(u => u.rol === rol);
+      if (estado === "activo") filtrados = filtrados.filter(u => u.activo);
+      if (estado === "inactivo") filtrados = filtrados.filter(u => !u.activo);
+
+      const tbody = document.getElementById("tbody-usuarios");
+      tbody.innerHTML = "";
+      document.getElementById("detalle-total").textContent =
+        `${filtrados.length} de ${usuariosCache.length} usuario(s)`;
+
+      if (filtrados.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" style="padding:0;">
+          <div class="empty-state">
+            <div class="empty-state__icon"><i data-lucide="users"></i></div>
+            <div class="empty-state__title">Sin resultados</div>
+            <div class="empty-state__text">Ajuste los filtros para ver más usuarios.</div>
+          </div>
+        </td></tr>`;
+        lucide.createIcons();
+        return;
+      }
+
+      filtrados.forEach((u, idx) => {
+        const tr = document.createElement("tr");
+        const badge = ROL_BADGE[u.rol] || "badge--gray";
+        tr.innerHTML = `
+          <td class="text-muted mono">${idx + 1}</td>
+          <td><strong>${u.nombre}</strong></td>
+          <td class="text-muted">${u.email}</td>
+          <td><span class="badge ${badge}">${u.rol}</span></td>
+          <td>
+            ${u.activo
+              ? `<span class="badge badge--green">Activo</span>`
+              : `<span class="badge badge--gray">Inactivo</span>`}
+          </td>
+          <td class="mono text-muted">${SGCM.formatFechaHora(u.fecha_creacion)}</td>`;
+        tbody.appendChild(tr);
+      });
+      lucide.createIcons();
+    }
+
+    document.getElementById("f-rol").addEventListener("change", pintarTabla);
+    document.getElementById("f-estado").addEventListener("change", pintarTabla);
+
+    // ─── Descarga PDF ───
+    document.getElementById("btn-pdf").addEventListener("click", async () => {
+      const btn = document.getElementById("btn-pdf");
+      btn.disabled = true;
+      try {
+        const res = await fetch("/api/v1/reportes/usuarios/pdf", {
+          headers: { Authorization: `Bearer ${SGCM.getToken()}` },
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.detail || `Error HTTP ${res.status}`);
+        }
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "reporte_usuarios.pdf";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+      } catch (err) {
+        setAlert(document.getElementById("error-box"), err.message);
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    // ─── Exportar Excel (SheetJS) ───
+    document.getElementById("btn-excel").addEventListener("click", () => {
+      if (!usuariosCache.length) {
+        setAlert(document.getElementById("error-box"), "No hay usuarios para exportar.");
+        return;
+      }
+      const rows = usuariosCache.map((u, i) => ({
+        "#": i + 1,
+        "Nombre": u.nombre,
+        "Email": u.email,
+        "Rol": u.rol,
+        "Estado": u.activo ? "Activo" : "Inactivo",
+        "Fecha de creación": SGCM.formatFechaHora(u.fecha_creacion),
+      }));
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.json_to_sheet(rows);
+      XLSX.utils.book_append_sheet(wb, ws, "Usuarios");
+      XLSX.writeFile(wb, "reporte_usuarios.xlsx");
+    });
+  </script>
+</body>
+</html>
