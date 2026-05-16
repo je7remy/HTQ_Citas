@@ -12,6 +12,7 @@ from app.models import AccionAuditoria, Horario, Medico, RolUsuario, Usuario
 from app.schemas import (
     HorarioCreate,
     HorarioRead,
+    MedicoBusquedaItem,
     MedicoConUsuarioCreate,
     MedicoCreate,
     MedicoRead,
@@ -71,6 +72,31 @@ def listar_especialidades(_: Usuario = Depends(_any)):
 @router.get("", response_model=list[MedicoRead])
 def listar(session: Session = Depends(get_session), _: Usuario = Depends(_any)):
     return session.exec(select(Medico).where(Medico.activo == True).order_by(Medico.nombre)).all()  # noqa: E712
+
+
+@router.get("/buscar", response_model=list[MedicoBusquedaItem])
+def buscar(
+    q: str = "",
+    incluir_inactivos: bool = False,
+    session: Session = Depends(get_session),
+    _: Usuario = Depends(_any),
+):
+    """Búsqueda incremental para autocomplete del filtro de agenda.
+
+    `q` se compara como coincidencia parcial case-insensitive sobre el nombre
+    del médico. Por defecto excluye médicos inactivos.
+    """
+    stmt = select(Medico)
+    if not incluir_inactivos:
+        stmt = stmt.where(Medico.activo == True)  # noqa: E712
+    q_clean = (q or "").strip()
+    if q_clean:
+        stmt = stmt.where(Medico.nombre.ilike(f"%{q_clean}%"))
+    medicos = session.exec(stmt.order_by(Medico.nombre).limit(20)).all()
+    return [
+        MedicoBusquedaItem(id=m.id, nombre=m.nombre, especialidad=m.especialidad)
+        for m in medicos
+    ]
 
 
 @router.get("/{medico_id}/proxima-disponibilidad")

@@ -1,14 +1,21 @@
 """CRUD de citas + endpoint feed para FullCalendar.js."""
-from datetime import date
+from datetime import date, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
 from app.api.deps import require_roles
+from app.core.datetime_utils import formatear_hora_12
 from app.db.session import get_session
 from app.models import AccionAuditoria, Cita, EstadoCita, Medico, Paciente, RolUsuario, Usuario
-from app.schemas import CitaCreate, CitaRead, CitaUpdate
+from app.schemas import (
+    AgendaCitaItem,
+    AgendaExtendidaResponse,
+    CitaCreate,
+    CitaRead,
+    CitaUpdate,
+)
 from app.services.audit import registrar_auditoria
 from app.services.citas_service import validar_disponibilidad
 
@@ -16,6 +23,81 @@ router = APIRouter(prefix="/citas", tags=["citas"])
 
 _staff = require_roles(RolUsuario.secretaria, RolUsuario.admin)
 _any = require_roles(RolUsuario.secretaria, RolUsuario.admin, RolUsuario.medico)
+
+
+def _parse_fecha_param(valor: str | None) -> date | None:
+    """Acepta 'YYYY-MM-DD' o ISO datetime y devuelve un date. None pasa intacto."""
+    if not valor:
+        return None
+    try:
+        # Soporta tanto fecha ISO como datetime ISO ("2026-05-16T08:00")
+        return datetime.fromisoformat(valor).date()
+    except ValueError:
+        try:
+            return date.fromisoformat(valor)
+        except ValueError as e:
+            raise HTTPException(422, f"Fecha inválida: {valor!r}. Use formato ISO.") from e
+
+
+def _construir_agenda_extendida(
+    session: Session,
+    *,
+    id_medico: int | None,
+    fecha_desde: date | None,
+    fecha_hasta: date | None,
+    estado: str | None,
+    especialidad: str | None,
+    busqueda_medico: str | None,
+) -> AgendaExtendidaResponse:
+    """Lógica común para agenda extendida (reusada por reportes PDF/Excel)."""
+    stmt = select(Cita, Paciente, Medico).where(
+        Cita.id_paciente == Paciente.id,
+        Cita.id_medico == Medico.id,
+    )
+    if fecha_desde:
+        stmt = stmt.where(Cita.fecha >= fecha_desde)
+    if fecha_hasta:
+        stmt = stmt.where(Cita.fecha <= fecha_hasta)
+    if id_medico:
+        stmt = stmt.where(Cita.id_medico == id_medico)
+    if estado and estado != "todos":
+        try:
+            estado_enum = EstadoCita(estado)
+        except ValueError as e:
+            raise HTTPException(422, f"Estado inválido: {estado!r}.") from e
+        stmt = stmt.where(Cita.estado == estado_enum)
+    if especialidad:
+        stmt = stmt.where(Medico.especialidad == especialidad)
+    if busqueda_medico:
+        patron = f"%{busqueda_medico.strip()}%"
+        stmt = stmt.where(Medico.nombre.ilike(patron))
+
+    rows = session.exec(stmt.order_by(Cita.fecha, Cita.hora)).all()
+
+    citas = [
+        AgendaCitaItem(
+            id=c.id,
+            fecha=c.fecha,
+            hora=c.hora,
+            hora_12h=formatear_hora_12(c.hora),
+            estado=c.estado,
+            motivo=c.motivo,
+            id_paciente=p.id,
+            paciente_nombre=f"{p.nombre} {p.apellidos}",
+            paciente_cedula=p.cedula,
+            id_medico=m.id,
+            medico_nombre=m.nombre,
+            medico_especialidad=m.especialidad,
+        )
+        for c, p, m in rows
+    ]
+    return AgendaExtendidaResponse(
+        total=len(citas),
+        pendientes=sum(1 for x in citas if x.estado == EstadoCita.pendiente),
+        atendidas=sum(1 for x in citas if x.estado == EstadoCita.atendida),
+        canceladas=sum(1 for x in citas if x.estado == EstadoCita.cancelada),
+        citas=citas,
+    )
 
 
 @router.get("", response_model=list[CitaRead])
@@ -37,6 +119,33 @@ def listar(
     if estado:
         stmt = stmt.where(Cita.estado == estado)
     return session.exec(stmt.order_by(Cita.fecha, Cita.hora)).all()
+
+
+@router.get("/agenda-extendida", response_model=AgendaExtendidaResponse)
+def agenda_extendida(
+    id_medico: int | None = None,
+    fecha_desde: str | None = Query(None, description="ISO date o datetime"),
+    fecha_hasta: str | None = Query(None, description="ISO date o datetime"),
+    estado: str | None = Query(None, description="pendiente|atendida|cancelada|todos"),
+    especialidad: str | None = None,
+    busqueda_medico: str | None = Query(None, description="Coincidencia parcial por nombre"),
+    session: Session = Depends(get_session),
+    _: Usuario = Depends(_staff),
+):
+    """Agenda detallada del día/rango para la secretaria (CU-12 extendido).
+
+    Devuelve citas enriquecidas con paciente, médico y especialidad, además
+    de conteos por estado. Acceso restringido a secretaria/admin.
+    """
+    return _construir_agenda_extendida(
+        session,
+        id_medico=id_medico,
+        fecha_desde=_parse_fecha_param(fecha_desde),
+        fecha_hasta=_parse_fecha_param(fecha_hasta),
+        estado=estado,
+        especialidad=especialidad,
+        busqueda_medico=busqueda_medico,
+    )
 
 
 @router.get("/calendar")

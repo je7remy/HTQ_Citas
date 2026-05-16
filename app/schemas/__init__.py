@@ -173,6 +173,37 @@ class CitaRead(BaseModel):
     fecha_registro: datetime
 
 
+# ============ Agenda extendida (secretaria) ============
+class AgendaCitaItem(BaseModel):
+    """Cita enriquecida para la pantalla de Agenda del Día de la secretaria."""
+    id: int
+    fecha: date
+    hora: time
+    hora_12h: str
+    estado: EstadoCita
+    motivo: Optional[str] = None
+    id_paciente: int
+    paciente_nombre: str
+    paciente_cedula: str
+    id_medico: int
+    medico_nombre: str
+    medico_especialidad: str
+
+
+class AgendaExtendidaResponse(BaseModel):
+    total: int
+    pendientes: int
+    atendidas: int
+    canceladas: int
+    citas: list[AgendaCitaItem]
+
+
+class MedicoBusquedaItem(BaseModel):
+    id: int
+    nombre: str
+    especialidad: str
+
+
 # ============ Consulta ============
 class ConsultaCreate(BaseModel):
     id_cita: int

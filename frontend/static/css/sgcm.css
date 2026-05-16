@@ -838,3 +838,54 @@ html, body {
 
 /* Hide helper preserving accessibility for screen readers */
 .is-hidden { display: none !important; }
+
+/* ─────────────── Impresión ─────────────── */
+.print-only { display: none; }
+
+@media print {
+  /* Oculta sidebar, header y elementos no imprimibles */
+  .app-sidebar,
+  .app-header,
+  .no-print,
+  .modal-backdrop {
+    display: none !important;
+  }
+
+  /* Reset shell: ya no hay grid de 2 columnas */
+  .app-shell {
+    display: block;
+    grid-template-columns: none;
+    grid-template-rows: none;
+  }
+  .app-main { padding: 0; }
+  body { background: #fff; color: #000; }
+
+  .print-only { display: block; }
+
+  .print-header {
+    border-bottom: 2px solid #1e40af;
+    padding-bottom: 10px;
+    margin-bottom: 14px;
+  }
+  .print-header__brand {
+    font-size: 14pt;
+    font-weight: 700;
+    color: #1e40af;
+  }
+  .print-header__sub {
+    font-size: 10pt;
+    color: #4b5563;
+    margin-top: 2px;
+  }
+
+  /* Las tarjetas de cita se imprimen limpias */
+  .appt-card {
+    page-break-inside: avoid;
+    border: 1px solid #e5e7eb !important;
+    box-shadow: none !important;
+    margin-bottom: 8px;
+  }
+
+  /* Mantiene el resumen visible */
+  #resumen-card { box-shadow: none !important; border: 1px solid #e5e7eb !important; }
+}

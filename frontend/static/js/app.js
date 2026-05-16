@@ -186,13 +186,14 @@ const SGCM = (() => {
   */
 
   const NAV_ITEMS = [
-    { key: 'calendario', label: 'Calendario',  href: '/calendar.html',   icon: 'calendar-days', role: null },
-    { key: 'pacientes',  label: 'Pacientes',   href: '/pacientes.html',  icon: 'users',         role: null },
-    { key: 'medicos',    label: 'Médicos',     href: '/medicos.html',    icon: 'stethoscope',   role: null },
-    { key: 'agenda',     label: 'Mi Agenda',   href: '/agenda.html',     icon: 'clipboard-list', role: 'medico' },
-    { key: 'usuarios',   label: 'Usuarios',    href: '/usuarios.html',   icon: 'shield-check',  role: 'admin' },
-    { key: 'reportes',   label: 'Reportes',    href: '/reportes-usuarios.html', icon: 'bar-chart-3', role: 'admin' },
-    { key: 'auditoria',  label: 'Auditoría',   href: '/auditoria.html',  icon: 'file-search',   role: 'admin' },
+    { key: 'calendario',        label: 'Calendario',     href: '/calendar.html',            icon: 'calendar-days', role: null },
+    { key: 'pacientes',         label: 'Pacientes',      href: '/pacientes.html',           icon: 'users',         role: null },
+    { key: 'medicos',           label: 'Médicos',        href: '/medicos.html',             icon: 'stethoscope',   role: null },
+    { key: 'agenda',            label: 'Mi Agenda',      href: '/agenda.html',              icon: 'clipboard-list', role: 'medico' },
+    { key: 'agenda-secretaria', label: 'Agenda del día', href: '/agenda-secretaria.html',   icon: 'calendar-check', role: 'staff' },
+    { key: 'usuarios',          label: 'Usuarios',       href: '/usuarios.html',            icon: 'shield-check',  role: 'admin' },
+    { key: 'reportes',          label: 'Reportes',       href: '/reportes-usuarios.html',   icon: 'bar-chart-3',   role: 'admin' },
+    { key: 'auditoria',         label: 'Auditoría',      href: '/auditoria.html',           icon: 'file-search',   role: 'admin' },
   ];
 
   function _initials(name) {
