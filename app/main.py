@@ -34,6 +34,22 @@ def create_app() -> FastAPI:
     def health():
         return {"status": "ok", "service": settings.APP_NAME}
 
+    @app.get(f"{settings.API_V1_PREFIX}/_debug/rutas", tags=["meta"])
+    def debug_rutas():
+        """Lista las rutas registradas — útil para verificar que el contenedor
+        tiene la versión más reciente del código tras un rebuild.
+
+        No requiere autenticación porque solo expone metadatos del router
+        (no datos de la BD). Si se quiere endurecer, añadir Depends(_admin).
+        """
+        rutas = []
+        for r in app.routes:
+            path = getattr(r, "path", None)
+            metodos = sorted(list(getattr(r, "methods", []) or []))
+            if path:
+                rutas.append({"path": path, "methods": metodos})
+        return {"total": len(rutas), "rutas": rutas}
+
     @app.exception_handler(Exception)
     async def unhandled_exception_handler(request: Request, exc: Exception):
         logger.exception("Unhandled error en %s", request.url.path)

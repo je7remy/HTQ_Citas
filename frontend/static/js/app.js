@@ -194,6 +194,7 @@ const SGCM = (() => {
     { key: 'usuarios',          label: 'Usuarios',       href: '/usuarios.html',            icon: 'shield-check',  role: 'admin' },
     { key: 'reportes',          label: 'Reportes',       href: '/reportes-usuarios.html',   icon: 'bar-chart-3',   role: 'admin' },
     { key: 'auditoria',         label: 'Auditoría',      href: '/auditoria.html',           icon: 'file-search',   role: 'admin' },
+    { key: 'respaldos',         label: 'Respaldos',      href: '/respaldos.html',           icon: 'database-backup', role: 'admin' },
   ];
 
   function _initials(name) {

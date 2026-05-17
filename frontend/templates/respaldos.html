@@ -1,0 +1,412 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SGCM — Respaldos</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="stylesheet" href="/static/css/sgcm.css" />
+  <style>
+    /* Botones grandes de acción para esta pantalla */
+    .backup-actions { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; margin-bottom:18px; }
+    .backup-btn {
+      display:flex; align-items:center; gap:14px;
+      padding:22px 20px; border-radius:var(--radius-lg);
+      border:1px solid var(--color-border); background:#fff;
+      cursor:pointer; transition:all .15s ease;
+      text-align:left;
+    }
+    .backup-btn:hover:not(:disabled) { box-shadow:var(--shadow-card-hover); transform:translateY(-1px); }
+    .backup-btn:disabled { opacity:.6; cursor:not-allowed; }
+    .backup-btn__icon {
+      width:48px; height:48px; border-radius:12px;
+      display:flex; align-items:center; justify-content:center;
+      color:#fff; flex-shrink:0;
+    }
+    .backup-btn__icon svg { width:24px; height:24px; }
+    .backup-btn__icon--local    { background:var(--color-success); }
+    .backup-btn__icon--externo  { background:var(--color-info); }
+    .backup-btn__icon--nube     { background:#9CA3AF; }
+    .backup-btn__title { font-size:15.5px; font-weight:600; color:var(--color-text); }
+    .backup-btn__sub   { font-size:12.5px; color:var(--color-text-muted); margin-top:2px; }
+
+    /* Toast */
+    .sgcm-toast-wrap {
+      position:fixed; top:24px; right:24px; z-index:9999;
+      display:flex; flex-direction:column; gap:10px;
+    }
+    .sgcm-toast {
+      min-width:280px; max-width:380px;
+      padding:12px 14px; border-radius:10px;
+      background:#fff; box-shadow:var(--shadow-modal);
+      border-left:4px solid var(--color-primary);
+      display:flex; gap:10px; align-items:flex-start;
+      font-size:13px;
+      animation: toast-in .25s ease-out;
+    }
+    .sgcm-toast--success { border-left-color:var(--color-success); }
+    .sgcm-toast--danger  { border-left-color:var(--color-danger); }
+    .sgcm-toast--info    { border-left-color:var(--color-info); }
+    .sgcm-toast__title { font-weight:600; margin-bottom:2px; }
+    .sgcm-toast__body  { color:var(--color-text-muted); }
+    @keyframes toast-in {
+      from { transform:translateY(-6px); opacity:0; }
+      to   { transform:translateY(0);    opacity:1; }
+    }
+  </style>
+</head>
+<body>
+  <main id="page-main">
+    <div class="page-header">
+      <div>
+        <h1 class="page-header__title">Respaldos del sistema</h1>
+        <p class="page-header__sub">CU-16 · Copias de seguridad de la base de datos PostgreSQL.</p>
+      </div>
+    </div>
+
+    <div id="acceso-error" class="alert alert--danger is-hidden" style="margin-bottom:18px;">
+      <i data-lucide="alert-circle"></i>
+      <span></span>
+    </div>
+
+    <!-- Acciones rápidas -->
+    <section class="card" style="margin-bottom:18px;">
+      <div class="card__header">
+        <div>
+          <div class="card__title">Crear nuevo respaldo</div>
+          <div class="card__sub">Seleccione la modalidad. La operación puede tardar segundos dependiendo del tamaño de la base.</div>
+        </div>
+      </div>
+      <div class="card__body">
+        <div class="backup-actions">
+          <button id="btn-local" class="backup-btn">
+            <div class="backup-btn__icon backup-btn__icon--local">
+              <i data-lucide="hard-drive"></i>
+            </div>
+            <div>
+              <div class="backup-btn__title">Respaldo Local</div>
+              <div class="backup-btn__sub">Guarda el .sql en el servidor</div>
+            </div>
+          </button>
+
+          <button id="btn-externo" class="backup-btn">
+            <div class="backup-btn__icon backup-btn__icon--externo">
+              <i data-lucide="usb"></i>
+            </div>
+            <div>
+              <div class="backup-btn__title">Respaldo Externo</div>
+              <div class="backup-btn__sub">Copia a disco USB o ruta de red</div>
+            </div>
+          </button>
+
+          <button id="btn-nube" class="backup-btn" disabled
+                  title="Funcionalidad disponible próximamente — requiere configurar credenciales del proveedor en variables de entorno">
+            <div class="backup-btn__icon backup-btn__icon--nube">
+              <i data-lucide="cloud-upload"></i>
+            </div>
+            <div>
+              <div class="backup-btn__title">Respaldo en Nube</div>
+              <div class="backup-btn__sub">Próximamente · S3 / GCS / Azure</div>
+            </div>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Filtros -->
+    <section class="card" style="margin-bottom:18px;">
+      <div class="card__header">
+        <div>
+          <div class="card__title">Filtros</div>
+          <div class="card__sub">Acote el histórico por tipo, estado o rango de fechas.</div>
+        </div>
+      </div>
+      <form id="form-filtros" class="card__body grid-4" style="align-items:end;">
+        <div class="field">
+          <label class="field__label">Tipo</label>
+          <select id="f-tipo" class="select">
+            <option value="">Todos</option>
+            <option value="local">Local</option>
+            <option value="externo">Externo</option>
+            <option value="nube">Nube</option>
+          </select>
+        </div>
+        <div class="field">
+          <label class="field__label">Estado</label>
+          <select id="f-estado" class="select">
+            <option value="">Todos</option>
+            <option value="completado">Completado</option>
+            <option value="en_progreso">En progreso</option>
+            <option value="fallido">Fallido</option>
+          </select>
+        </div>
+        <div class="field">
+          <label class="field__label">Desde</label>
+          <input type="date" id="f-desde" class="input" />
+        </div>
+        <div class="field">
+          <label class="field__label">Hasta</label>
+          <input type="date" id="f-hasta" class="input" />
+        </div>
+        <div class="row" style="grid-column:1/-1;">
+          <button class="btn btn-primary">
+            <i data-lucide="filter"></i>
+            <span>Filtrar</span>
+          </button>
+          <button type="button" id="btn-limpiar" class="btn btn-ghost">
+            <i data-lucide="x"></i>
+            <span>Limpiar</span>
+          </button>
+        </div>
+      </form>
+    </section>
+
+    <!-- Histórico -->
+    <section class="card">
+      <div class="card__header">
+        <div>
+          <div class="card__title">Histórico de respaldos</div>
+          <div class="card__sub" id="historico-total">—</div>
+        </div>
+      </div>
+      <div class="card__body" style="padding:0;">
+        <div class="table-wrap" style="border:none; border-radius:0;">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Fecha</th>
+                <th>Tipo</th>
+                <th>Tamaño</th>
+                <th>Estado</th>
+                <th>Duración</th>
+                <th>Usuario</th>
+                <th class="text-right">Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="tbody-respaldos"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div class="sgcm-toast-wrap" id="toast-wrap"></div>
+
+  <script src="/static/js/app.js"></script>
+  <script>
+    function setAlert(box, msg) {
+      box.querySelector("span").textContent = msg;
+      box.classList.remove("is-hidden");
+      lucide.createIcons();
+    }
+
+    function toast({ titulo, mensaje, tipo = "info", timeout = 4500 }) {
+      const wrap = document.getElementById("toast-wrap");
+      const el = document.createElement("div");
+      el.className = `sgcm-toast sgcm-toast--${tipo}`;
+      el.innerHTML = `
+        <i data-lucide="${tipo === "success" ? "check-circle" : tipo === "danger" ? "alert-triangle" : "info"}"></i>
+        <div>
+          <div class="sgcm-toast__title">${titulo}</div>
+          <div class="sgcm-toast__body">${mensaje}</div>
+        </div>`;
+      wrap.appendChild(el);
+      lucide.createIcons();
+      setTimeout(() => el.remove(), timeout);
+    }
+
+    function formatBytes(n) {
+      if (!n && n !== 0) return "—";
+      if (n === 0) return "0 B";
+      const u = ["B","KB","MB","GB","TB"];
+      const i = Math.floor(Math.log(n) / Math.log(1024));
+      return `${(n / Math.pow(1024, i)).toFixed(i === 0 ? 0 : 2)} ${u[i]}`;
+    }
+
+    function formatDuracion(s) {
+      if (s === null || s === undefined) return "—";
+      if (s < 60) return `${s}s`;
+      const m = Math.floor(s / 60);
+      const r = s % 60;
+      return `${m}m ${r}s`;
+    }
+
+    const ESTADO_BADGE = {
+      completado:   "badge--green",
+      en_progreso:  "badge--blue",
+      fallido:      "badge--red",
+    };
+
+    const TIPO_BADGE = {
+      local:   "badge--green",
+      externo: "badge--blue",
+      nube:    "badge--purple",
+    };
+
+    (async () => {
+      const me = await SGCM.mountShell({ active: 'respaldos', pageTitle: 'Respaldos' });
+      if (!me) return;
+      if (me.rol !== "admin") {
+        setAlert(document.getElementById("acceso-error"), "Esta pantalla es solo para administradores.");
+        return;
+      }
+      await cargarHistorico();
+      lucide.createIcons();
+    })();
+
+    async function cargarHistorico() {
+      try {
+        const params = new URLSearchParams();
+        const t = document.getElementById("f-tipo").value;
+        const e = document.getElementById("f-estado").value;
+        const d = document.getElementById("f-desde").value;
+        const h = document.getElementById("f-hasta").value;
+        if (t) params.set("tipo", t);
+        if (e) params.set("estado", e);
+        if (d) params.set("desde", d);
+        if (h) params.set("hasta", h);
+
+        const data = await SGCM.api(`/respaldos?${params.toString()}`);
+        const tbody = document.getElementById("tbody-respaldos");
+        const totalInfo = document.getElementById("historico-total");
+        tbody.innerHTML = "";
+        if (!data.length) {
+          tbody.innerHTML = `<tr><td colspan="7" style="padding:0;">
+            <div class="empty-state">
+              <div class="empty-state__icon"><i data-lucide="database"></i></div>
+              <div class="empty-state__title">Sin respaldos registrados</div>
+              <div class="empty-state__text">Cree el primer respaldo usando los botones de arriba.</div>
+            </div>
+          </td></tr>`;
+          totalInfo.textContent = "Sin registros";
+          lucide.createIcons();
+          return;
+        }
+        totalInfo.textContent = `${data.length} respaldo${data.length === 1 ? "" : "s"}`;
+        for (const r of data) {
+          const tr = document.createElement("tr");
+          const tipoLabel = r.tipo === "nube" && r.proveedor_nube
+            ? `${r.tipo} · ${r.proveedor_nube.toUpperCase()}`
+            : r.tipo;
+          const acciones = (r.tipo === "local" && r.estado === "completado")
+            ? `<button data-id="${r.id}" class="btn btn-ghost btn-sm dl-btn" title="Descargar .sql">
+                 <i data-lucide="download"></i><span>Descargar</span>
+               </button>`
+            : `<button data-ruta="${(r.ruta_destino || '').replace(/"/g, '&quot;')}" class="btn btn-ghost btn-sm info-btn" title="Ver ruta">
+                 <i data-lucide="folder"></i><span>Ver ruta</span>
+               </button>`;
+          tr.innerHTML = `
+            <td class="mono" style="white-space:nowrap;">${SGCM.formatFechaHora(r.fecha_inicio)}</td>
+            <td><span class="badge ${TIPO_BADGE[r.tipo] || 'badge--gray'}">${tipoLabel}</span></td>
+            <td class="mono">${formatBytes(r.tamano_bytes)}</td>
+            <td><span class="badge ${ESTADO_BADGE[r.estado] || 'badge--gray'}">${r.estado}</span></td>
+            <td class="mono">${formatDuracion(r.duracion_segundos)}</td>
+            <td><strong>${r.nombre_usuario}</strong></td>
+            <td class="text-right">${acciones}</td>`;
+          if (r.mensaje_error) {
+            const tr2 = document.createElement("tr");
+            tr2.innerHTML = `<td colspan="7" class="text-muted" style="background:#FEF2F2; color:#991B1B; font-size:12px;">
+              <i data-lucide="alert-triangle" style="width:13px;height:13px;display:inline;vertical-align:-2px;"></i>
+              ${r.mensaje_error}
+            </td>`;
+            tbody.appendChild(tr);
+            tbody.appendChild(tr2);
+          } else {
+            tbody.appendChild(tr);
+          }
+        }
+        tbody.querySelectorAll(".dl-btn").forEach(b =>
+          b.addEventListener("click", () => descargar(b.dataset.id))
+        );
+        tbody.querySelectorAll(".info-btn").forEach(b =>
+          b.addEventListener("click", () => toast({
+            titulo: "Ubicación del archivo",
+            mensaje: b.dataset.ruta || "No disponible",
+            tipo: "info",
+            timeout: 6500,
+          }))
+        );
+        lucide.createIcons();
+      } catch (err) {
+        toast({ titulo: "Error al cargar respaldos", mensaje: err.message, tipo: "danger" });
+      }
+    }
+
+    async function crear(tipo) {
+      const btnLocal = document.getElementById("btn-local");
+      const btnExt = document.getElementById("btn-externo");
+      btnLocal.disabled = true; btnExt.disabled = true;
+      toast({
+        titulo: "Generando respaldo…",
+        mensaje: "Esto puede tardar unos segundos. No cierre la ventana.",
+        tipo: "info",
+        timeout: 3500,
+      });
+      try {
+        const res = await SGCM.api("/respaldos", {
+          method: "POST",
+          body: JSON.stringify({ tipo }),
+        });
+        if (res.estado === "completado") {
+          toast({
+            titulo: "Respaldo creado",
+            mensaje: `Archivo guardado en ${res.ruta_destino}`,
+            tipo: "success",
+            timeout: 6500,
+          });
+        } else {
+          toast({
+            titulo: "Respaldo no completado",
+            mensaje: res.mensaje_error || `Estado: ${res.estado}`,
+            tipo: "danger",
+            timeout: 8000,
+          });
+        }
+        await cargarHistorico();
+      } catch (err) {
+        toast({ titulo: "Error al crear respaldo", mensaje: err.message, tipo: "danger" });
+      } finally {
+        btnLocal.disabled = false; btnExt.disabled = false;
+      }
+    }
+
+    async function descargar(id) {
+      try {
+        const token = SGCM.getToken();
+        const res = await fetch(`/api/v1/respaldos/${id}/descargar`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.detail || `HTTP ${res.status}`);
+        }
+        const blob = await res.blob();
+        const cd = res.headers.get("Content-Disposition") || "";
+        const m = cd.match(/filename="?([^"]+)"?/);
+        const filename = m ? m[1] : `respaldo_${id}.sql`;
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url; a.download = filename;
+        document.body.appendChild(a); a.click(); a.remove();
+        URL.revokeObjectURL(url);
+      } catch (err) {
+        toast({ titulo: "No se pudo descargar", mensaje: err.message, tipo: "danger" });
+      }
+    }
+
+    document.getElementById("btn-local").addEventListener("click", () => crear("local"));
+    document.getElementById("btn-externo").addEventListener("click", () => crear("externo"));
+
+    document.getElementById("form-filtros").addEventListener("submit", (e) => {
+      e.preventDefault(); cargarHistorico();
+    });
+    document.getElementById("btn-limpiar").addEventListener("click", () => {
+      document.getElementById("form-filtros").reset(); cargarHistorico();
+    });
+  </script>
+</body>
+</html>

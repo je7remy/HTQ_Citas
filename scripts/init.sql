@@ -97,3 +97,28 @@ CREATE TABLE IF NOT EXISTS auditoria (
 );
 
 CREATE INDEX IF NOT EXISTS idx_auditoria_fecha ON auditoria(fecha_hora);
+
+-- Bitácora de respaldos generados desde el panel admin (/respaldos.html).
+CREATE TABLE IF NOT EXISTS respaldos (
+    id                  SERIAL PRIMARY KEY,
+    id_usuario          INTEGER REFERENCES usuarios(id),
+    nombre_usuario      VARCHAR(100) NOT NULL,
+    tipo                VARCHAR(20)  NOT NULL
+                         CHECK (tipo IN ('local','externo','nube')),
+    proveedor_nube      VARCHAR(20)
+                         CHECK (proveedor_nube IS NULL
+                                OR proveedor_nube IN ('s3','gcs','azure')),
+    ruta_origen         TEXT         NOT NULL,
+    ruta_destino        TEXT         NOT NULL,
+    tamano_bytes        BIGINT       NOT NULL,
+    hash_sha256         VARCHAR(64)  NOT NULL,
+    estado              VARCHAR(20)  NOT NULL
+                         CHECK (estado IN ('en_progreso','completado','fallido')),
+    mensaje_error       TEXT,
+    fecha_inicio        TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    fecha_fin           TIMESTAMPTZ,
+    duracion_segundos   INTEGER
+);
+
+CREATE INDEX IF NOT EXISTS idx_respaldos_fecha_inicio ON respaldos(fecha_inicio);
+CREATE INDEX IF NOT EXISTS idx_respaldos_tipo_estado  ON respaldos(tipo, estado);

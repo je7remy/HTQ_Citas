@@ -28,6 +28,14 @@ class Settings(BaseSettings):
 
     BACKEND_CORS_ORIGINS: List[str] = ["http://localhost"]
 
+    # Respaldos (CU-16)
+    SGCM_BACKUP_LOCAL_DIR: str = "/var/backups/sgcm"
+    SGCM_BACKUP_EXTERNAL_DIR: str = "/mnt/backup_externo"
+    SGCM_BACKUP_S3_BUCKET: str = ""
+    SGCM_BACKUP_S3_REGION: str = ""
+    SGCM_BACKUP_GCS_BUCKET: str = ""
+    SGCM_BACKUP_AZURE_CONTAINER: str = ""
+
     @property
     def DATABASE_URL(self) -> str:
         return (

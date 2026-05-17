@@ -300,3 +300,32 @@ class MedicosDetalleResponse(BaseModel):
     total_medicos: int
     medicos: list[MedicoDetalleStats]
     fecha_generacion: datetime
+
+
+# ============ Respaldos ============
+TipoRespaldoLiteral = Literal["local", "externo", "nube"]
+ProveedorNubeLiteral = Literal["s3", "gcs", "azure"]
+EstadoRespaldoLiteral = Literal["en_progreso", "completado", "fallido"]
+
+
+class RespaldoCreate(BaseModel):
+    tipo: TipoRespaldoLiteral
+    proveedor_nube: Optional[ProveedorNubeLiteral] = None
+
+
+class RespaldoRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    id_usuario: Optional[int]
+    nombre_usuario: str
+    tipo: TipoRespaldoLiteral
+    proveedor_nube: Optional[ProveedorNubeLiteral] = None
+    ruta_origen: str
+    ruta_destino: str
+    tamano_bytes: int
+    hash_sha256: str
+    estado: EstadoRespaldoLiteral
+    mensaje_error: Optional[str] = None
+    fecha_inicio: datetime
+    fecha_fin: Optional[datetime] = None
+    duracion_segundos: Optional[int] = None

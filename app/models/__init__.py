@@ -45,6 +45,24 @@ class SexoPaciente(str, Enum):
     prefiero_no_decir = "prefiero no decir"
 
 
+class TipoRespaldo(str, Enum):
+    local = "local"
+    externo = "externo"
+    nube = "nube"
+
+
+class ProveedorNube(str, Enum):
+    s3 = "s3"
+    gcs = "gcs"
+    azure = "azure"
+
+
+class EstadoRespaldo(str, Enum):
+    en_progreso = "en_progreso"
+    completado = "completado"
+    fallido = "fallido"
+
+
 # ----------------------------- Usuarios -----------------------------
 class Usuario(SQLModel, table=True):
     __tablename__ = "usuarios"
@@ -180,3 +198,44 @@ class Auditoria(SQLModel, table=True):
     detalle: Optional[str] = None
     fecha_hora: datetime = Field(default_factory=ahora_local, sa_column=_ts_column())
     ip_origen: Optional[str] = Field(default=None, max_length=45)
+
+
+# ----------------------------- Respaldos -----------------------------
+# Las columnas tipo/proveedor_nube/estado se almacenan como VARCHAR + CHECK
+# (igual que rol en usuarios o estado en citas). Usar Enum Python aquí haría
+# que SQLAlchemy intente crear tipos ENUM nativos en PostgreSQL al ejecutar
+# create_all() sobre una BD con datos preexistentes — eso choca con init.sql
+# (que define VARCHAR) y con la migración 0006 (que también es VARCHAR).
+# Los enums viven solo en código de aplicación.
+class Respaldo(SQLModel, table=True):
+    __tablename__ = "respaldos"
+    __table_args__ = (
+        CheckConstraint(
+            "tipo IN ('local','externo','nube')", name="ck_respaldos_tipo"
+        ),
+        CheckConstraint(
+            "proveedor_nube IS NULL OR proveedor_nube IN ('s3','gcs','azure')",
+            name="ck_respaldos_proveedor_nube",
+        ),
+        CheckConstraint(
+            "estado IN ('en_progreso','completado','fallido')",
+            name="ck_respaldos_estado",
+        ),
+    )
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    id_usuario: Optional[int] = Field(default=None, foreign_key="usuarios.id")
+    nombre_usuario: str = Field(max_length=100, nullable=False)
+    tipo: str = Field(max_length=20, nullable=False)
+    proveedor_nube: Optional[str] = Field(default=None, max_length=20)
+    ruta_origen: str = Field(nullable=False)
+    ruta_destino: str = Field(nullable=False)
+    tamano_bytes: int = Field(nullable=False)
+    hash_sha256: str = Field(max_length=64, nullable=False)
+    estado: str = Field(max_length=20, nullable=False)
+    mensaje_error: Optional[str] = None
+    fecha_inicio: datetime = Field(default_factory=ahora_local, sa_column=_ts_column())
+    fecha_fin: Optional[datetime] = Field(
+        default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
+    )
+    duracion_segundos: Optional[int] = None

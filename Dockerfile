@@ -5,10 +5,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
     TZ=America/Santo_Domingo
 
-# Dependencias de sistema para WeasyPrint + psycopg2 + zona horaria RD
+# Dependencias de sistema para WeasyPrint + psycopg2 + pg_dump + zona horaria RD
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     libpq-dev \
+    postgresql-client \
     libpango-1.0-0 \
     libpangoft2-1.0-0 \
     libharfbuzz0b \
@@ -28,6 +29,11 @@ COPY requirements.txt .
 RUN pip install --upgrade pip && pip install -r requirements.txt
 
 COPY . .
+
+# Directorio para respaldos locales (CU-16). Si se monta un volumen sobre
+# esta ruta, el volumen toma precedencia; este RUN solo garantiza la
+# existencia y los permisos en builds sin volumen.
+RUN mkdir -p /var/backups/sgcm && chmod 755 /var/backups/sgcm
 
 # El entrypoint inicializa el esquema y, si SGCM_SEED=true, ejecuta el seeder.
 RUN chmod +x /app/docker-entrypoint.sh

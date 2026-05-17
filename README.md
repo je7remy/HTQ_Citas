@@ -29,6 +29,7 @@ Plataforma web para automatizar y optimizar el proceso de gestión de citas méd
 - [Integración continua](#integraci%C3%B3n-continua)
 - [Comandos útiles](#comandos-%C3%BAtiles)
 - [Documentación](#documentaci%C3%B3n)
+- [Respaldos del sistema](#respaldos-del-sistema)
 - [Cumplimiento legal](#cumplimiento-legal)
 - [Autores](#autores)
 - [Versión](#versi%C3%B3n)
@@ -365,6 +366,70 @@ Como alternativa siempre disponible, la pestaña **Actions** del repositorio ref
 |Ejecutar migraciones|`docker exec sgcm_api alembic upgrade head`|
 |Acceder a la base de datos|`docker exec -it sgcm_db psql -U sgcm_user -d sgcm_db`|
 |Ejecutar tests|`docker exec sgcm_api pytest -v`|
+
+---
+
+## Respaldos del sistema
+
+> ⚠️ **Si está actualizando desde una versión sin CU-16**, ejecute estos
+> tres pasos antes de usar las pantallas (de lo contrario el navegador
+> recibirá errores HTTP, ya que el contenedor api todavía no tiene
+> `pg_dump` ni la tabla `respaldos`):
+>
+> ```bash
+> docker compose build --no-cache api
+> docker compose up -d
+> docker exec sgcm_api alembic upgrade head
+> ```
+>
+> Verifique con `curl -s http://localhost/api/v1/_debug/rutas` que los
+> endpoints `/respaldos`, `/citas/agenda-extendida` y
+> `/reportes/usuarios/resumen` aparecen en la lista.
+
+El SGCM incluye un módulo de respaldos (**CU-16**, panel `/respaldos.html`,
+solo administrador) con tres modalidades:
+
+- **Local** — el `.sql` se guarda en `SGCM_BACKUP_LOCAL_DIR` (por defecto
+  `/var/backups/sgcm`) del propio servidor. Listo para usarse.
+- **Externo** — el `.sql` se copia a `SGCM_BACKUP_EXTERNAL_DIR` (por defecto
+  `/mnt/backup_externo`), pensado para disco USB rotativo o ruta UNC. Listo
+  para usarse cuando el medio esté montado en el host.
+- **Nube** — andamiaje con stubs para Amazon S3, Google Cloud Storage y
+  Azure Blob Storage. El botón aparece deshabilitado hasta que se instale
+  el SDK del proveedor y se configuren las credenciales.
+
+Cada respaldo:
+
+1. Genera un volcado SQL con `pg_dump` contra el contenedor `db`.
+2. Calcula SHA-256 del archivo origen.
+3. Lo entrega al destino usando el patrón **Strategy**
+   (`app/services/backup/`).
+4. Verifica integridad re-calculando el hash en destino.
+5. Registra metadatos completos (usuario, tamaño, duración, estado, hash,
+   error si lo hubiera) en la tabla `respaldos`.
+
+| Acción                       | Endpoint                                |
+|------------------------------|-----------------------------------------|
+| Crear respaldo               | `POST /api/v1/respaldos`                |
+| Listar histórico             | `GET /api/v1/respaldos`                 |
+| Detalle                      | `GET /api/v1/respaldos/{id}`            |
+| Eliminar registro            | `DELETE /api/v1/respaldos/{id}`         |
+| Descargar `.sql` (solo local)| `GET /api/v1/respaldos/{id}/descargar`  |
+
+Variables relevantes del `.env`:
+
+```env
+SGCM_BACKUP_LOCAL_DIR=/var/backups/sgcm
+SGCM_BACKUP_EXTERNAL_DIR=/mnt/backup_externo
+SGCM_BACKUP_S3_BUCKET=
+SGCM_BACKUP_S3_REGION=
+SGCM_BACKUP_GCS_BUCKET=
+SGCM_BACKUP_AZURE_CONTAINER=
+```
+
+La guía operativa completa (montar disco USB, activar respaldo en nube,
+restaurar con `psql`/`pg_restore`, política de retención sugerida) está
+en [`docs/BACKUPS.md`](docs/BACKUPS.md).
 
 ---
 

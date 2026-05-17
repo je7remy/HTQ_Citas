@@ -10,6 +10,7 @@ from app.api.v1.endpoints import (
     pacientes,
     reportes,
     reportes_admin,
+    respaldos,
     usuarios,
 )
 
@@ -23,3 +24,4 @@ api_router.include_router(consultas.router)
 api_router.include_router(reportes.router)
 api_router.include_router(reportes_admin.router)
 api_router.include_router(auditoria.router)
+api_router.include_router(respaldos.router)
