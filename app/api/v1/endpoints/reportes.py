@@ -4,6 +4,7 @@ from io import BytesIO
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
+from jinja2 import Template
 from sqlmodel import Session, select
 from weasyprint import HTML
 
@@ -106,8 +107,6 @@ def reporte_citas_pdf(
     session: Session = Depends(get_session),
     _: Usuario = Depends(_staff),
 ):
-    from jinja2 import Template
-
     stmt = select(Cita, Paciente, Medico).where(
         Cita.id_paciente == Paciente.id,
         Cita.id_medico == Medico.id,
@@ -292,8 +291,6 @@ def reporte_agenda_pdf(
     _: Usuario = Depends(_secretaria),
 ):
     """PDF de agenda extendida con los mismos filtros que /citas/agenda-extendida."""
-    from jinja2 import Template
-
     fd = _parse_fecha_param(fecha_desde)
     fh = _parse_fecha_param(fecha_hasta)
     agenda = _construir_agenda_extendida(
