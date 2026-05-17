@@ -25,6 +25,9 @@ Plataforma web para automatizar y optimizar el proceso de gestión de citas méd
 - [Estructura del proyecto](#estructura-del-proyecto)
 - [Casos de uso](#casos-de-uso)
 - [Roles y permisos](#roles-y-permisos)
+- [Endpoints REST](#endpoints-rest)
+- [Variables de entorno](#variables-de-entorno)
+- [Migraciones de base de datos](#migraciones-de-base-de-datos)
 - [Pruebas automatizadas](#pruebas-automatizadas)
 - [Integración continua](#integraci%C3%B3n-continua)
 - [Comandos útiles](#comandos-%C3%BAtiles)
@@ -55,7 +58,11 @@ El SGCM automatiza el proceso de gestión de citas que el HTQPJB realizaba previ
 - Prevención física de duplicaciones mediante índice único parcial en PostgreSQL.
 - Bloqueo temporal del registro de consulta: el médico no puede registrar diagnósticos antes de la fecha de la cita.
 - Vinculación de usuarios con perfiles de médico desde la UI del administrador.
+- Reset de contraseña por administrador (sin requerir la contraseña anterior; auditado).
 - Reportes PDF generados con WeasyPrint, con fecha de emisión y numeración secuencial.
+- Reportes administrativos: resumen y PDF de usuarios por rol, detalle y PDF de médicos activos con estadísticas.
+- Agenda extendida para secretaria/admin con filtros por médico, rango de fechas, estado y especialidad; exportación a PDF y Excel; impresión optimizada (`@media print`).
+- Sistema de respaldos (CU-16) con tres modalidades: local, externo (USB/UNC) y andamiaje preparado para nube (Amazon S3, Google Cloud Storage, Azure Blob).
 - Auditoría transaccional de todas las operaciones críticas (Ley 172-13).
 - Suite de pruebas automatizadas con pytest.
 - CI/CD con GitHub Actions ejecutando linter, tests y construcción de imagen Docker.
@@ -254,34 +261,58 @@ SGCM_SEED=true
 ```text
 sgcm/
 ├── app/                          Backend Python
-│   ├── api/v1/                   Endpoints REST
+│   ├── api/v1/endpoints/         Endpoints REST
+│   │   ├── auth.py
+│   │   ├── usuarios.py           CRUD + reset de password por admin
+│   │   ├── pacientes.py          CRUD + historial-medico
+│   │   ├── medicos.py            CRUD, especialidades, /buscar, /proxima-disponibilidad
+│   │   ├── citas.py              CRUD + agenda-extendida + feed FullCalendar
+│   │   ├── consultas.py          Registro de consultas (rol médico)
+│   │   ├── reportes.py           Citas (PDF) y agenda extendida (PDF/Excel)
+│   │   ├── reportes_admin.py     Reportes administrativos (usuarios y médicos)
+│   │   ├── respaldos.py          CU-16 — gestión de respaldos
+│   │   └── auditoria.py
 │   ├── core/                     Configuración y seguridad (JWT, bcrypt)
 │   ├── db/                       Sesión SQLAlchemy + seeders (seed.py)
 │   ├── models/                   Modelos SQLModel (tablas)
 │   ├── scripts/                  CLI: seed_db.py (pobla datos del HTQPJB)
 │   ├── services/                 Lógica de negocio
+│   │   ├── audit.py              Auditoría transaccional
+│   │   ├── citas_service.py      Validaciones de disponibilidad
+│   │   └── backup/               CU-16 — Strategy: local / externo / nube
+│   │       ├── manager.py        Orquesta pg_dump → SHA-256 → estrategia
+│   │       ├── local.py
+│   │       ├── externo.py
+│   │       └── nube/             Stubs S3, GCS y Azure
 │   ├── templates/reportes/       Templates HTML para PDFs
 │   └── main.py                   Punto de entrada FastAPI
 ├── docker-entrypoint.sh          Inicializa esquema y ejecuta seed si SGCM_SEED=true
-├── alembic/                      Migraciones de base de datos
+├── alembic/versions/             6 migraciones (0001-0006); la 0006 crea `respaldos`
 ├── frontend/
 │   ├── static/
-│   │   └── js/app.js             Módulo JS común (SGCM)
+│   │   ├── css/sgcm.css          Sistema de diseño (incluye `@media print`)
+│   │   ├── js/app.js             Módulo JS común (SGCM) + NAV_ITEMS
+│   │   ├── vendor/               Tailwind, FullCalendar, Lucide, xlsx (offline)
+│   │   └── fonts/inter/          Fuente Inter local (.woff2)
 │   └── templates/                Páginas HTML
 │       ├── login.html
 │       ├── calendar.html         Calendario y modales de cita
 │       ├── pacientes.html
 │       ├── medicos.html          Médicos y modal de edición
 │       ├── agenda.html           Agenda del rol médico
+│       ├── agenda-secretaria.html  Agenda extendida con filtros, PDF/Excel/print
 │       ├── usuarios.html         Gestión de usuarios (admin)
+│       ├── reportes-usuarios.html  Reportes administrativos (admin)
+│       ├── respaldos.html        Panel de respaldos CU-16 (admin)
 │       └── auditoria.html        Log de auditoría (admin)
 ├── nginx/                        Configuración Nginx
 ├── scripts/init.sql              DDL inicial (volumen Postgres)
+├── docs/                         Guías operativas (BACKUPS.md, OFFLINE.md)
 ├── tests/                        Suite pytest
 ├── .github/workflows/ci.yml      CI con GitHub Actions
-├── docker-compose.yml            Orquestación
-├── Dockerfile                    Imagen del backend
-├── requirements.txt              Dependencias Python
+├── docker-compose.yml            Orquestación (incluye volumen sgcm_backups)
+├── Dockerfile                    Imagen del backend (incluye postgresql-client)
+├── requirements.txt              Dependencias Python (incluye openpyxl)
 └── .env.example                  Plantilla de variables
 ```
 
@@ -289,7 +320,7 @@ sgcm/
 
 ## Casos de uso
 
-El sistema implementa los **15 casos de uso** definidos en el análisis:
+El sistema implementa los **16 casos de uso** definidos en el análisis:
 
 |ID|Caso de uso|Roles|
 |---|---|---|
@@ -308,6 +339,7 @@ El sistema implementa los **15 casos de uso** definidos en el análisis:
 |CU-13|Gestionar usuarios|Admin|
 |CU-14|Registrar médico|Admin|
 |CU-15|Consultar auditoría|Admin|
+|CU-16|Generar respaldo de la base de datos|Admin|
 
 ---
 
@@ -320,6 +352,154 @@ El sistema implementa los **15 casos de uso** definidos en el análisis:
 |Administrador|Todo lo anterior, más usuarios, médicos, horarios y auditoría|
 
 El RBAC se aplica en **dos capas**: el backend valida cada petición HTTP independientemente del estado del frontend, garantizando seguridad real. El frontend adapta dinámicamente la UI con `data-role` para mejor experiencia.
+
+---
+
+## Endpoints REST
+
+Todas las rutas viven bajo el prefijo `/api/v1`. La especificación OpenAPI
+completa (con esquemas y ejemplos) se expone en `/api/v1/docs` (Swagger UI).
+En la columna **Rol** se indica el rol mínimo aceptado:
+*Todos* = cualquier usuario autenticado, *Staff* = secretaria o admin.
+
+### Autenticación
+
+| Método | Ruta                         | Rol     | Descripción                                  |
+|--------|------------------------------|---------|----------------------------------------------|
+| POST   | `/auth/login`                | público | Devuelve un JWT a partir de email/contraseña |
+| GET    | `/auth/me`                   | Todos   | Datos del usuario autenticado actual         |
+
+### Usuarios (Admin)
+
+| Método | Ruta                                    | Rol   | Descripción                                                   |
+|--------|-----------------------------------------|-------|---------------------------------------------------------------|
+| GET    | `/usuarios`                             | Admin | Lista usuarios; filtros `?rol=` y `?sin_perfil_medico=true`   |
+| POST   | `/usuarios`                             | Admin | Alta de usuario                                               |
+| PATCH  | `/usuarios/{id}`                        | Admin | Actualiza datos del usuario                                   |
+| PATCH  | `/usuarios/{id}/password`               | Admin | Reset de contraseña sin requerir la anterior (auditado)       |
+| DELETE | `/usuarios/{id}`                        | Admin | Soft delete (preserva FK en citas/auditoría)                  |
+
+### Médicos
+
+| Método | Ruta                                              | Rol   | Descripción                                                                  |
+|--------|---------------------------------------------------|-------|------------------------------------------------------------------------------|
+| GET    | `/medicos`                                        | Todos | Lista médicos activos                                                        |
+| GET    | `/medicos/especialidades`                         | Todos | Catálogo oficial HTQPJB (18 especialidades)                                  |
+| GET    | `/medicos/buscar?q=&incluir_inactivos=`           | Todos | Autocomplete por nombre (limit 20)                                           |
+| GET    | `/medicos/{id}/proxima-disponibilidad`            | Todos | Sugerencia de slot libre (granularidad 30 min, horizonte 30 días)            |
+| POST   | `/medicos`                                        | Admin | Alta de perfil médico (puede vincular usuario existente)                     |
+| POST   | `/medicos/con-usuario`                            | Admin | Crea usuario rol=medico + perfil médico en una transacción                   |
+| PATCH  | `/medicos/{id}`                                   | Admin | Actualiza perfil médico                                                      |
+| GET    | `/medicos/{id}/horarios`                          | Todos | Lista horarios del médico                                                    |
+| POST   | `/medicos/{id}/horarios`                          | Admin | Alta de horario                                                              |
+| DELETE | `/medicos/horarios/{horario_id}`                  | Admin | Baja de horario                                                              |
+
+### Pacientes
+
+| Método | Ruta                                       | Rol   | Descripción                                                       |
+|--------|--------------------------------------------|-------|-------------------------------------------------------------------|
+| GET    | `/pacientes`                               | Todos | Lista pacientes                                                   |
+| GET    | `/pacientes/{id}`                          | Todos | Detalle                                                           |
+| POST   | `/pacientes`                               | Staff | Alta (valida cédula dominicana con dígito verificador)            |
+| PATCH  | `/pacientes/{id}`                          | Staff | Actualización                                                     |
+| GET    | `/pacientes/{id}/historial-medico?medico_id=` | Todos | Consultas atendidas (DESC), filtro opcional por médico         |
+| DELETE | `/pacientes/{id}`                          | Staff | Baja                                                              |
+
+### Citas y consultas
+
+| Método | Ruta                                                                                  | Rol   | Descripción                                                                |
+|--------|---------------------------------------------------------------------------------------|-------|----------------------------------------------------------------------------|
+| GET    | `/citas?desde=&hasta=&id_medico=&estado=`                                             | Todos | Listado básico                                                             |
+| GET    | `/citas/agenda-extendida?id_medico=&fecha_desde=&fecha_hasta=&estado=&especialidad=&busqueda_medico=` | Staff | Agenda enriquecida con conteos por estado |
+| GET    | `/citas/calendar?start=&end=&id_medico=`                                              | Todos | Feed en formato FullCalendar                                               |
+| POST   | `/citas`                                                                              | Staff | Crea cita (valida E-005 / E-006)                                           |
+| PATCH  | `/citas/{id}`                                                                         | Staff | Reprograma (revalida disponibilidad)                                       |
+| DELETE | `/citas/{id}`                                                                         | Staff | Cancela (libera el slot del índice parcial)                                |
+| GET    | `/consultas/agenda`                                                                   | Médico| Agenda del médico autenticado                                              |
+| POST   | `/consultas`                                                                          | Médico| Registra consulta (bloqueo temporal: no antes de la fecha/hora de la cita) |
+
+### Reportes
+
+| Método | Ruta                                                                          | Rol   | Descripción                                                                  |
+|--------|-------------------------------------------------------------------------------|-------|------------------------------------------------------------------------------|
+| GET    | `/reportes/citas.pdf?desde=&hasta=&id_medico=`                                | Todos | PDF de citas por rango con resumen por estado                                |
+| GET    | `/reportes/agenda/pdf?id_medico=&fecha_desde=&fecha_hasta=&estado=&especialidad=&busqueda_medico=` | Staff | PDF (A4 horizontal) de la agenda extendida |
+| GET    | `/reportes/agenda/excel?…` *(mismos filtros)*                                 | Staff | Exportación `.xlsx` (openpyxl)                                               |
+| GET    | `/reportes/usuarios/resumen`                                                  | Admin | JSON con conteos por rol y estado                                            |
+| GET    | `/reportes/usuarios/pdf`                                                      | Admin | PDF con resumen + detalle de usuarios + estadísticas adicionales             |
+| GET    | `/reportes/medicos/detalle`                                                   | Admin | JSON con estadísticas por médico activo                                      |
+| GET    | `/reportes/medicos/pdf`                                                       | Admin | PDF con listado de médicos activos y resumen final                           |
+
+### Respaldos (Admin · CU-16)
+
+| Método | Ruta                                                              | Rol   | Descripción                                                                  |
+|--------|-------------------------------------------------------------------|-------|------------------------------------------------------------------------------|
+| POST   | `/respaldos`                                                      | Admin | Crea respaldo (`tipo=local|externo|nube`, `proveedor_nube=s3|gcs|azure`)     |
+| GET    | `/respaldos?tipo=&estado=&desde=&hasta=&limit=&offset=`           | Admin | Histórico con filtros                                                        |
+| GET    | `/respaldos/{id}`                                                 | Admin | Detalle de un respaldo                                                       |
+| DELETE | `/respaldos/{id}`                                                 | Admin | Elimina el registro (no el archivo físico; auditado)                         |
+| GET    | `/respaldos/{id}/descargar`                                       | Admin | Descarga el `.sql` (solo respaldos tipo `local`)                             |
+
+### Auditoría y metadatos
+
+| Método | Ruta                          | Rol     | Descripción                                                                  |
+|--------|-------------------------------|---------|------------------------------------------------------------------------------|
+| GET    | `/auditoria`                  | Admin   | Bitácora paginada de operaciones críticas                                    |
+| GET    | `/_debug/rutas`               | público | Lista las rutas registradas (útil para verificar la versión tras un rebuild) |
+| GET    | `/health` *(fuera de /api/v1)*| público | Health-check                                                                 |
+
+---
+
+## Variables de entorno
+
+La plantilla completa vive en [`.env.example`](.env.example). A continuación
+las variables introducidas en las últimas iteraciones (las demás —`JWT_*`,
+`POSTGRES_*`, `BACKEND_CORS_ORIGINS`— están documentadas en el propio
+archivo):
+
+| Variable                       | Default                     | Descripción                                                                       |
+|--------------------------------|-----------------------------|-----------------------------------------------------------------------------------|
+| `SGCM_SEED`                    | `false`                     | Si es `true`, el contenedor `api` ejecuta `app.scripts.seed_db` al arrancar       |
+| `SGCM_BACKUP_LOCAL_DIR`        | `/var/backups/sgcm`         | Carpeta del servidor donde se almacenan los respaldos locales                     |
+| `SGCM_BACKUP_EXTERNAL_DIR`     | `/mnt/backup_externo`       | Punto de montaje del medio externo (USB / ruta UNC) para respaldos externos       |
+| `SGCM_BACKUP_S3_BUCKET`        | *(vacío)*                   | Bucket S3 destino — andamiaje, no funcional aún                                   |
+| `SGCM_BACKUP_S3_REGION`        | *(vacío)*                   | Región AWS — andamiaje, no funcional aún                                          |
+| `SGCM_BACKUP_GCS_BUCKET`       | *(vacío)*                   | Bucket Google Cloud Storage — andamiaje, no funcional aún                         |
+| `SGCM_BACKUP_AZURE_CONTAINER`  | *(vacío)*                   | Contenedor Azure Blob — andamiaje, no funcional aún                               |
+
+> **Nota sobre la nube:** las tres estrategias (`s3`, `gcs`, `azure`) están
+> implementadas como *stubs* (`NotImplementedError` con mensaje guía). El
+> botón "Nube" de `/respaldos.html` aparece deshabilitado y los endpoints
+> devuelven `fallido` con `mensaje_error` orientativo. Para activarlas hay
+> que instalar el SDK del proveedor, completar las credenciales y rellenar
+> el cuerpo de `app/services/backup/nube/{s3,gcs,azure}.py`. La guía paso a
+> paso está en [`docs/BACKUPS.md`](docs/BACKUPS.md).
+
+---
+
+## Migraciones de base de datos
+
+El esquema actual está consolidado en `scripts/init.sql` (se aplica al
+crear el volumen `sgcm_pgdata` por primera vez). Para mantener historial
+versionado y permitir upgrades futuros sobre BDs existentes, el proyecto
+mantiene **6 migraciones Alembic reversibles** en `alembic/versions/`:
+
+| Revisión | Archivo                                          | Cambio principal                                                                   |
+|----------|--------------------------------------------------|------------------------------------------------------------------------------------|
+| `0001`   | `0001_initial.py`                                | Esquema inicial (preexistente, desincronizado con `init.sql`; no se reaplica)      |
+| `0002`   | `0002_pacientes_sexo_fecha_nacimiento.py`        | `pacientes.sexo` NOT NULL (CHECK 4 valores) + `fecha_nacimiento` NOT NULL          |
+| `0003`   | `0003_medicos_especialidades_secundarias.py`     | `medicos.especialidad_secundaria_1` y `_2` (nullable)                              |
+| `0004`   | `0004_auditoria_nombre_usuario.py`               | Denormaliza `auditoria.nombre_usuario` NOT NULL                                    |
+| `0005`   | `0005_consultas_diagnostico_estructurado.py`     | 5 campos clínicos en `consultas` (motivo, examen físico, condiciones, tratamiento) |
+| `0006`   | `0006_respaldos.py`                              | Crea la tabla `respaldos` + 2 índices                                              |
+
+Aplicación:
+
+```bash
+docker exec sgcm_api alembic upgrade head    # despliegue normal sobre BD existente
+docker exec sgcm_api alembic current         # ver revisión activa
+docker exec sgcm_api alembic stamp head      # marcar como aplicadas cuando la BD vino de init.sql
+```
 
 ---
 
@@ -371,6 +551,21 @@ Como alternativa siempre disponible, la pestaña **Actions** del repositorio ref
 |Ejecutar migraciones|`docker exec sgcm_api alembic upgrade head`|
 |Acceder a la base de datos|`docker exec -it sgcm_db psql -U sgcm_user -d sgcm_db`|
 |Ejecutar tests|`docker exec sgcm_api pytest -v`|
+
+---
+
+## Documentación
+
+Las guías operativas detalladas viven bajo `docs/` para no inflar este
+README:
+
+| Documento | Contenido |
+|---|---|
+| [`docs/BACKUPS.md`](docs/BACKUPS.md) | Flujo completo de respaldos (CU-16), montaje de disco USB en Linux, roadmap de activación de nube con *snippets* por SDK, restauración con `psql` / `pg_restore`, política de retención sugerida y referencia API. |
+| [`docs/OFFLINE.md`](docs/OFFLINE.md) | Cómo se sirven Tailwind, FullCalendar, Lucide, xlsx y la fuente Inter desde `frontend/static/vendor/`, política de cache y procedimiento para actualizar una dependencia. |
+
+La especificación OpenAPI viva del backend está siempre disponible en
+`http://<host>/api/v1/docs` (Swagger UI) y `http://<host>/api/v1/openapi.json`.
 
 ---
 
