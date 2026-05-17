@@ -143,6 +143,44 @@
     </div>
   </div>
 
+  <!-- ══════════════ MODAL: CAMBIAR CONTRASEÑA ══════════════ -->
+  <div id="modal-password" class="modal-backdrop is-hidden">
+    <div class="modal">
+      <div class="modal__header">
+        <h2 class="modal__title">Cambiar contraseña</h2>
+        <button type="button" class="modal__close" id="pw-cerrar"><i data-lucide="x"></i></button>
+      </div>
+      <form id="form-password" class="modal__body stack">
+        <input type="hidden" id="pw-id" />
+        <p class="text-muted" style="font-size:14px; margin:0;">
+          Usuario: <strong id="pw-usuario-info">—</strong>
+        </p>
+        <div class="field">
+          <label class="field__label">Nueva contraseña *</label>
+          <input id="pw-nueva" type="password" required minlength="8" maxlength="128" class="input" />
+        </div>
+        <div class="field">
+          <label class="field__label">Confirmar contraseña *</label>
+          <input id="pw-confirmar" type="password" required minlength="8" maxlength="128" class="input" />
+        </div>
+        <p class="text-muted" style="font-size:12px; margin:0;">
+          Requisitos: mínimo 8 caracteres, máximo 128.
+        </p>
+        <div id="pw-error" class="alert alert--danger is-hidden">
+          <i data-lucide="alert-circle"></i>
+          <span></span>
+        </div>
+      </form>
+      <div class="modal__footer">
+        <button type="button" id="pw-cancelar" class="btn btn-ghost">Cancelar</button>
+        <button type="submit" form="form-password" class="btn btn-primary">
+          <i data-lucide="check"></i>
+          <span>Guardar contraseña</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
   <script src="/static/js/app.js"></script>
   <script>
     function setAlert(box, msg) {
@@ -203,11 +241,16 @@
             <td class="text-right">
               <button data-id="${u.id}" data-nombre="${u.nombre}" data-rol="${u.rol}" data-activo="${u.activo}"
                 class="edit-u-btn icon-btn" title="Editar"><i data-lucide="pencil"></i></button>
+              <button data-id="${u.id}" data-nombre="${u.nombre}" data-email="${u.email}"
+                class="pw-u-btn icon-btn" title="Cambiar contraseña"><i data-lucide="key-round"></i></button>
             </td>`;
           tbody.appendChild(tr);
         }
         tbody.querySelectorAll(".edit-u-btn").forEach((b) =>
           b.addEventListener("click", () => abrirModalEditarUsuario(b.dataset))
+        );
+        tbody.querySelectorAll(".pw-u-btn").forEach((b) =>
+          b.addEventListener("click", () => abrirModalPassword(b.dataset))
         );
         lucide.createIcons();
       } catch (err) {
@@ -274,6 +317,47 @@
         });
         modalEditar.classList.add("is-hidden");
         await cargarUsuarios();
+      } catch (err) { setAlert(errBox, err.message); }
+    });
+
+    // ═══ Modal cambiar contraseña
+    const modalPw = document.getElementById("modal-password");
+    document.getElementById("pw-cerrar").addEventListener("click", () => modalPw.classList.add("is-hidden"));
+    document.getElementById("pw-cancelar").addEventListener("click", () => modalPw.classList.add("is-hidden"));
+
+    function abrirModalPassword(data) {
+      document.getElementById("pw-id").value = data.id;
+      document.getElementById("pw-usuario-info").textContent = `${data.nombre} (${data.email})`;
+      document.getElementById("form-password").reset();
+      document.getElementById("pw-error").classList.add("is-hidden");
+      modalPw.classList.remove("is-hidden");
+    }
+
+    document.getElementById("form-password").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const errBox = document.getElementById("pw-error");
+      errBox.classList.add("is-hidden");
+      const id = document.getElementById("pw-id").value;
+      const nueva = document.getElementById("pw-nueva").value;
+      const confirmar = document.getElementById("pw-confirmar").value;
+
+      if (nueva.length < 8) {
+        return setAlert(errBox, "La contraseña debe tener al menos 8 caracteres.");
+      }
+      if (nueva.length > 128) {
+        return setAlert(errBox, "La contraseña no puede pasar de 128 caracteres.");
+      }
+      if (nueva !== confirmar) {
+        return setAlert(errBox, "Las contraseñas no coinciden.");
+      }
+
+      try {
+        await SGCM.api(`/usuarios/${id}/password`, {
+          method: "PATCH",
+          body: JSON.stringify({ nueva_password: nueva }),
+        });
+        modalPw.classList.add("is-hidden");
+        alert("Contraseña actualizada correctamente.");
       } catch (err) { setAlert(errBox, err.message); }
     });
   </script>

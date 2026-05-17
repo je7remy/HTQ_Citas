@@ -9,7 +9,7 @@ from app.api.deps import require_roles
 from app.core.security import hash_password
 from app.db.session import get_session
 from app.models import AccionAuditoria, Medico, RolUsuario, Usuario
-from app.schemas import UsuarioCreate, UsuarioRead, UsuarioUpdate
+from app.schemas import PasswordReset, UsuarioCreate, UsuarioRead, UsuarioUpdate
 from app.services.audit import registrar_auditoria
 
 router = APIRouter(prefix="/usuarios", tags=["usuarios"])
@@ -89,6 +89,39 @@ def actualizar(
         tabla="usuarios",
         id_registro=user.id,
         detalle=f"Update {data}",
+        ip_origen=request.client.host if request.client else None,
+    )
+    session.commit()
+    session.refresh(user)
+    return user
+
+
+@router.patch("/{user_id}/password", response_model=UsuarioRead)
+def cambiar_password(
+    user_id: int,
+    payload: PasswordReset,
+    request: Request,
+    session: Session = Depends(get_session),
+    actor: Usuario = Depends(_admin_only),
+):
+    """Reset de contraseña realizado por un administrador.
+
+    El admin no necesita conocer la contraseña anterior. Se reutiliza la
+    política y la función de hashing existentes; el detalle de auditoría
+    nunca incluye la contraseña ni su hash.
+    """
+    user = session.get(Usuario, user_id)
+    if not user:
+        raise HTTPException(404, "Usuario no encontrado.")
+    user.password_hash = hash_password(payload.nueva_password)
+    session.add(user)
+    registrar_auditoria(
+        session,
+        usuario=actor,
+        accion=AccionAuditoria.UPDATE,
+        tabla="usuarios",
+        id_registro=user.id,
+        detalle=f"Reset password de {user.email}",
         ip_origen=request.client.host if request.client else None,
     )
     session.commit()

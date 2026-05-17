@@ -47,6 +47,10 @@ class UsuarioUpdate(BaseModel):
     rol: Optional[RolUsuario] = None
 
 
+class PasswordReset(BaseModel):
+    nueva_password: str = Field(min_length=8, max_length=128)
+
+
 # ============ Paciente ============
 class PacienteBase(BaseModel):
     cedula: str = Field(min_length=11, max_length=13)
