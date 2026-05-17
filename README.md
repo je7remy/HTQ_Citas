@@ -276,7 +276,7 @@ sgcm/
 │       ├── usuarios.html         Gestión de usuarios (admin)
 │       └── auditoria.html        Log de auditoría (admin)
 ├── nginx/                        Configuración Nginx
-├── scripts/seed.py               Datos iniciales
+├── scripts/init.sql              DDL inicial (volumen Postgres)
 ├── tests/                        Suite pytest
 ├── .github/workflows/ci.yml      CI con GitHub Actions
 ├── docker-compose.yml            Orquestación
