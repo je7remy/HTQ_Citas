@@ -30,6 +30,7 @@ Plataforma web para automatizar y optimizar el proceso de gestión de citas méd
 - [Comandos útiles](#comandos-%C3%BAtiles)
 - [Documentación](#documentaci%C3%B3n)
 - [Respaldos del sistema](#respaldos-del-sistema)
+- [Operación sin internet (offline)](#operaci%C3%B3n-sin-internet-offline)
 - [Cumplimiento legal](#cumplimiento-legal)
 - [Autores](#autores)
 - [Versión](#versi%C3%B3n)
@@ -102,8 +103,12 @@ flowchart TB
 ### Frontend
 
 - **HTML5 + JavaScript ES6** — Vanilla, sin framework.
-- **Tailwind CSS** — Vía CDN.
-- **FullCalendar.js** — Calendario interactivo.
+- **Tailwind CSS** — Servido localmente desde `static/vendor/tailwind/`.
+- **FullCalendar.js 6.1.15** — Calendario interactivo (también local).
+- **Lucide Icons** — Iconografía servida desde `static/vendor/lucide/`.
+- **Fuente Inter** — Archivos `.woff2` locales (`static/fonts/inter/`).
+
+> **Sin internet:** todas las dependencias del frontend viajan en el repositorio. El sistema funciona completo dentro de la intranet del HTQPJB aunque el servidor no tenga salida a internet. Ver [`docs/OFFLINE.md`](docs/OFFLINE.md).
 
 ### Infraestructura
 
@@ -430,6 +435,32 @@ SGCM_BACKUP_AZURE_CONTAINER=
 La guía operativa completa (montar disco USB, activar respaldo en nube,
 restaurar con `psql`/`pg_restore`, política de retención sugerida) está
 en [`docs/BACKUPS.md`](docs/BACKUPS.md).
+
+---
+
+## Operación sin internet (offline)
+
+El SGCM está diseñado para correr en la intranet del HTQPJB sin necesidad de
+salida a internet en el servidor. Todas las dependencias del frontend
+(Tailwind CSS, FullCalendar 6.1.15, Lucide Icons, xlsx 0.18.5 y la fuente
+Inter) se sirven localmente desde Nginx:
+
+```
+frontend/static/
+├── vendor/
+│   ├── tailwind/tailwind.min.js          (~440 KB)
+│   ├── lucide/lucide.min.js              (~350 KB)
+│   ├── fullcalendar/fullcalendar.min.js  (~280 KB)
+│   ├── fullcalendar/locales-es.min.js    (~1 KB)
+│   └── xlsx/xlsx.full.min.js             (~860 KB)
+└── fonts/inter/
+    ├── inter.css
+    ├── inter-latin.woff2
+    └── inter-latin-ext.woff2
+```
+
+Procedimiento de verificación, política de cache y cómo actualizar una
+dependencia en el futuro: [`docs/OFFLINE.md`](docs/OFFLINE.md).
 
 ---
 
