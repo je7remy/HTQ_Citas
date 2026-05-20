@@ -43,6 +43,7 @@ def _crear_paciente_y_cita(client, seed_users, hora="09:00:00"):
     ).json()
 
 
+@pytest.mark.requires_weasyprint
 def test_pdf_genera_bytes_validos(client, auth_as, seed_users):
     auth_as("secretaria")
     _crear_paciente_y_cita(client, seed_users)
@@ -152,6 +153,7 @@ def test_template_contiene_seccion_resumen():
     assert "Total general" in html
 
 
+@pytest.mark.requires_weasyprint
 def test_pdf_endpoint_resumen_coincide_con_citas(client, auth_as, seed_users):
     """El endpoint genera un PDF cuyo resumen refleja los conteos reales."""
     auth_as("secretaria")
@@ -238,33 +240,52 @@ def test_reporte_citas_pdf_audita_generacion(client, auth_as, seed_users, sessio
     assert all(log.nombre_usuario == seed_users["secretaria"].nombre for log in logs)
 
 
-@pytest.mark.requires_weasyprint
-def test_pdf_citas_contiene_nombre_actor(client, auth_as, seed_users):
-    """El PDF binario debe contener el nombre del usuario generador."""
+class _FakeHTML:
+    """Captura el HTML renderizado en vez de invocar a WeasyPrint."""
+    capturas: list[str] = []
+
+    def __init__(self, string=None, **kw):
+        type(self).capturas.append(string or "")
+
+    def write_pdf(self):  # noqa: D401
+        return b"%PDF-fake\n%%EOF"
+
+
+def test_pdf_citas_contiene_nombre_actor(
+    client, auth_as, seed_users, monkeypatch
+):
+    """El HTML pasado a WeasyPrint debe incluir 'Generado por: <nombre>'."""
+    _FakeHTML.capturas = []
+    monkeypatch.setattr("app.api.v1.endpoints.reportes.HTML", _FakeHTML)
+
     auth_as("secretaria")
     res = client.get(
         "/api/v1/reportes/citas.pdf?desde=2026-01-01&hasta=2026-01-31"
     )
     assert res.status_code == 200
-    assert res.content.startswith(b"%PDF-")
-    assert seed_users["secretaria"].nombre.encode("utf-8") in res.content
+    assert _FakeHTML.capturas, "WeasyPrint no fue invocado"
+    html = _FakeHTML.capturas[-1]
+    assert "Generado por:" in html
+    assert seed_users["secretaria"].nombre in html
 
 
-@pytest.mark.requires_weasyprint
-def test_pdf_citas_refleja_dos_usuarios_distintos(client, auth_as, seed_users):
-    """Mismo reporte generado por dos usuarios → cada PDF lleva su propio nombre."""
+def test_pdf_citas_refleja_dos_usuarios_distintos(
+    client, auth_as, seed_users, monkeypatch
+):
+    """Mismo endpoint con dos actores → cada render lleva su propio nombre."""
+    _FakeHTML.capturas = []
+    monkeypatch.setattr("app.api.v1.endpoints.reportes.HTML", _FakeHTML)
+
     auth_as("secretaria")
-    pdf_sec = client.get(
-        "/api/v1/reportes/citas.pdf?desde=2026-01-01&hasta=2026-01-31"
-    ).content
+    client.get("/api/v1/reportes/citas.pdf?desde=2026-01-01&hasta=2026-01-31")
+    html_sec = _FakeHTML.capturas[-1]
 
     auth_as("admin")
-    pdf_admin = client.get(
-        "/api/v1/reportes/citas.pdf?desde=2026-01-01&hasta=2026-01-31"
-    ).content
+    client.get("/api/v1/reportes/citas.pdf?desde=2026-01-01&hasta=2026-01-31")
+    html_admin = _FakeHTML.capturas[-1]
 
-    nombre_sec = seed_users["secretaria"].nombre.encode("utf-8")
-    nombre_admin = seed_users["admin"].nombre.encode("utf-8")
+    nombre_sec = seed_users["secretaria"].nombre
+    nombre_admin = seed_users["admin"].nombre
 
-    assert nombre_sec in pdf_sec and nombre_admin not in pdf_sec
-    assert nombre_admin in pdf_admin and nombre_sec not in pdf_admin
+    assert nombre_sec in html_sec and nombre_admin not in html_sec
+    assert nombre_admin in html_admin and nombre_sec not in html_admin

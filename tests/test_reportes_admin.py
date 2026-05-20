@@ -84,6 +84,7 @@ def test_reporte_usuarios_resumen_cuenta_inactivos(
 
 
 # ────────────── B) PDF de usuarios ──────────────
+@pytest.mark.requires_weasyprint
 def test_reporte_usuarios_pdf_genera_archivo_no_vacio(client, auth_as, seed_users):
     auth_as("admin")
     res = client.get("/api/v1/reportes/usuarios/pdf")
@@ -182,6 +183,7 @@ def test_reporte_medicos_detalle_solo_admin(client, auth_as, seed_users):
 
 
 # ────────────── D) PDF de médicos ──────────────
+@pytest.mark.requires_weasyprint
 def test_reporte_medicos_pdf_incluye_todos_los_medicos_activos(
     client, auth_as, seed_users, session: Session
 ):
@@ -295,11 +297,20 @@ def test_template_medicos_contiene_generado_por():
     assert "Admin Test" in html
 
 
-@pytest.mark.requires_weasyprint
+class _FakeHTMLAdmin:
+    capturas: list[str] = []
+
+    def __init__(self, string=None, **kw):
+        type(self).capturas.append(string or "")
+
+    def write_pdf(self):
+        return b"%PDF-fake\n%%EOF"
+
+
 def test_pdf_usuarios_refleja_dos_admin_distintos(
-    client, auth_as, seed_users, session
+    client, auth_as, seed_users, session, monkeypatch
 ):
-    """Dos admin distintos generan el mismo reporte → cada PDF lleva su nombre."""
+    """Dos admin distintos generan el mismo reporte → cada HTML lleva su nombre."""
     admin_b = Usuario(
         nombre="Admin Bravo",
         email="adminb@test.do",
@@ -310,24 +321,40 @@ def test_pdf_usuarios_refleja_dos_admin_distintos(
     session.commit()
     session.refresh(admin_b)
 
-    auth_as("admin")
-    pdf_a = client.get("/api/v1/reportes/usuarios/pdf").content
+    _FakeHTMLAdmin.capturas = []
+    monkeypatch.setattr(
+        "app.api.v1.endpoints.reportes_admin.HTML", _FakeHTMLAdmin
+    )
 
-    # Forzamos al cliente como admin_b sin pasar por seed_users
+    auth_as("admin")
+    client.get("/api/v1/reportes/usuarios/pdf")
+    html_a = _FakeHTMLAdmin.capturas[-1]
+
     from app.api.deps import get_current_user
     from app.main import app
 
     app.dependency_overrides[get_current_user] = lambda: admin_b
-    pdf_b = client.get("/api/v1/reportes/usuarios/pdf").content
+    client.get("/api/v1/reportes/usuarios/pdf")
+    html_b = _FakeHTMLAdmin.capturas[-1]
 
-    assert seed_users["admin"].nombre.encode("utf-8") in pdf_a
-    assert admin_b.nombre.encode("utf-8") not in pdf_a
-    assert admin_b.nombre.encode("utf-8") in pdf_b
+    # El listado de usuarios incluye a ambos admins como filas; lo que cambia
+    # entre renders es la cabecera "Generado por: ...".
+    assert f"Generado por: {seed_users['admin'].nombre}" in html_a
+    assert f"Generado por: {admin_b.nombre}" not in html_a
+    assert f"Generado por: {admin_b.nombre}" in html_b
 
 
-@pytest.mark.requires_weasyprint
-def test_pdf_medicos_contiene_nombre_admin(client, auth_as, seed_users):
+def test_pdf_medicos_contiene_nombre_admin(
+    client, auth_as, seed_users, monkeypatch
+):
+    _FakeHTMLAdmin.capturas = []
+    monkeypatch.setattr(
+        "app.api.v1.endpoints.reportes_admin.HTML", _FakeHTMLAdmin
+    )
+
     auth_as("admin")
     res = client.get("/api/v1/reportes/medicos/pdf")
     assert res.status_code == 200
-    assert seed_users["admin"].nombre.encode("utf-8") in res.content
+    html = _FakeHTMLAdmin.capturas[-1]
+    assert "Generado por:" in html
+    assert seed_users["admin"].nombre in html

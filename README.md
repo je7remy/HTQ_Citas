@@ -59,7 +59,7 @@ El SGCM automatiza el proceso de gestión de citas que el HTQPJB realizaba previ
 - Bloqueo temporal del registro de consulta: el médico no puede registrar diagnósticos antes de la fecha de la cita.
 - Vinculación de usuarios con perfiles de médico desde la UI del administrador.
 - Reset de contraseña por administrador (sin requerir la contraseña anterior; auditado).
-- Reportes PDF generados con WeasyPrint, con fecha de emisión y numeración secuencial.
+- Reportes PDF generados con WeasyPrint, con fecha de emisión, numeración secuencial y trazabilidad del usuario que los genera.
 - Reportes administrativos: resumen y PDF de usuarios por rol, detalle y PDF de médicos activos con estadísticas.
 - Agenda extendida para secretaria/admin con filtros por médico, rango de fechas, estado y especialidad; exportación a PDF y Excel; impresión optimizada (`@media print`).
 - Sistema de respaldos (CU-16) con tres modalidades: local, externo (USB/UNC) y andamiaje preparado para nube (Amazon S3, Google Cloud Storage, Azure Blob).
@@ -429,6 +429,12 @@ En la columna **Rol** se indica el rol mínimo aceptado:
 | GET    | `/reportes/usuarios/pdf`                                                      | Admin | PDF con resumen + detalle de usuarios + estadísticas adicionales             |
 | GET    | `/reportes/medicos/detalle`                                                   | Admin | JSON con estadísticas por médico activo                                      |
 | GET    | `/reportes/medicos/pdf`                                                       | Admin | PDF con listado de médicos activos y resumen final                           |
+
+**Trazabilidad de generación.** Todos los reportes (PDF y Excel) incluyen en la
+cabecera la línea `Generado por: <nombre del usuario autenticado>`, y cada
+generación queda registrada en la tabla de auditoría
+(`tabla_afectada='reportes'`, `accion=CREATE`, `detalle='Generación de reporte:
+<tipo>'`) para saber quién extrajo información del sistema.
 
 ### Respaldos (Admin · CU-16)
 

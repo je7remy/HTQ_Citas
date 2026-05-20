@@ -221,6 +221,7 @@ def test_medicos_buscar_excluye_inactivos_por_default(client, auth_as, seed_user
 
 
 # ───────────────────── 7. Reporte PDF respeta filtros ─────────────────────
+@pytest.mark.requires_weasyprint
 def test_reporte_agenda_pdf_respeta_filtros(client, auth_as, seed_users):
     pytest.importorskip("weasyprint")
     auth_as("secretaria")
@@ -356,17 +357,34 @@ def test_excel_agenda_contiene_generado_por_dos_usuarios(
     assert wb_admin.active["A4"].value == f"Generado por: {seed_users['admin'].nombre}"
 
 
-@pytest.mark.requires_weasyprint
-def test_pdf_agenda_refleja_dos_usuarios_distintos(client, auth_as, seed_users):
-    auth_as("secretaria")
-    pdf_sec = client.get("/api/v1/reportes/agenda/pdf").content
-    auth_as("admin")
-    pdf_admin = client.get("/api/v1/reportes/agenda/pdf").content
+class _FakeHTMLAgenda:
+    capturas: list[str] = []
 
-    nombre_sec = seed_users["secretaria"].nombre.encode("utf-8")
-    nombre_admin = seed_users["admin"].nombre.encode("utf-8")
-    assert nombre_sec in pdf_sec and nombre_admin not in pdf_sec
-    assert nombre_admin in pdf_admin and nombre_sec not in pdf_admin
+    def __init__(self, string=None, **kw):
+        type(self).capturas.append(string or "")
+
+    def write_pdf(self):
+        return b"%PDF-fake\n%%EOF"
+
+
+def test_pdf_agenda_refleja_dos_usuarios_distintos(
+    client, auth_as, seed_users, monkeypatch
+):
+    _FakeHTMLAgenda.capturas = []
+    monkeypatch.setattr("app.api.v1.endpoints.reportes.HTML", _FakeHTMLAgenda)
+
+    auth_as("secretaria")
+    client.get("/api/v1/reportes/agenda/pdf")
+    html_sec = _FakeHTMLAgenda.capturas[-1]
+
+    auth_as("admin")
+    client.get("/api/v1/reportes/agenda/pdf")
+    html_admin = _FakeHTMLAgenda.capturas[-1]
+
+    nombre_sec = seed_users["secretaria"].nombre
+    nombre_admin = seed_users["admin"].nombre
+    assert nombre_sec in html_sec and nombre_admin not in html_sec
+    assert nombre_admin in html_admin and nombre_sec not in html_admin
 
 
 # ───────────────────── Extras: datetime ISO en filtros ─────────────────────
