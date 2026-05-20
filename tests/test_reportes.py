@@ -189,9 +189,82 @@ def test_template_resumen_conteos_correctos():
     html = Template(_TEMPLATE).render(
         desde="2026-01-01", hasta="2026-01-31", filas=[], medico_nombre=None,
         fecha_emision="x",
+        generado_por="Tester",
         resumen={"pendientes": 7, "atendidas": 12, "canceladas": 3, "total": 22},
     )
     assert ">7<" in html
     assert ">12<" in html
     assert ">3<" in html
     assert ">22<" in html
+
+
+# ---------- Trazabilidad: "Generado por" ----------
+def test_template_citas_contiene_generado_por():
+    """El template del reporte de citas renderiza la línea 'Generado por:'."""
+    from jinja2 import Template
+
+    from app.api.v1.endpoints.reportes import _TEMPLATE
+
+    html = Template(_TEMPLATE).render(
+        desde="2026-01-01", hasta="2026-01-31",
+        filas=[], medico_nombre=None,
+        fecha_emision="x",
+        generado_por="Secre Test",
+        resumen={"pendientes": 0, "atendidas": 0, "canceladas": 0, "total": 0},
+    )
+    assert "Generado por:" in html
+    assert "Secre Test" in html
+
+
+def test_reporte_citas_pdf_audita_generacion(client, auth_as, seed_users, session):
+    """El endpoint /citas.pdf debe registrar la generación en auditoría."""
+    from sqlmodel import select
+
+    from app.models import AccionAuditoria, Auditoria
+
+    auth_as("secretaria")
+    res = client.get(
+        "/api/v1/reportes/citas.pdf?desde=2026-01-01&hasta=2026-01-31"
+    )
+    assert res.status_code == 200
+
+    logs = session.exec(
+        select(Auditoria).where(
+            Auditoria.tabla_afectada == "reportes",
+            Auditoria.accion == AccionAuditoria.CREATE,
+        )
+    ).all()
+    assert any("citas" in (log.detalle or "") for log in logs)
+    assert all(log.nombre_usuario == seed_users["secretaria"].nombre for log in logs)
+
+
+@pytest.mark.requires_weasyprint
+def test_pdf_citas_contiene_nombre_actor(client, auth_as, seed_users):
+    """El PDF binario debe contener el nombre del usuario generador."""
+    auth_as("secretaria")
+    res = client.get(
+        "/api/v1/reportes/citas.pdf?desde=2026-01-01&hasta=2026-01-31"
+    )
+    assert res.status_code == 200
+    assert res.content.startswith(b"%PDF-")
+    assert seed_users["secretaria"].nombre.encode("utf-8") in res.content
+
+
+@pytest.mark.requires_weasyprint
+def test_pdf_citas_refleja_dos_usuarios_distintos(client, auth_as, seed_users):
+    """Mismo reporte generado por dos usuarios → cada PDF lleva su propio nombre."""
+    auth_as("secretaria")
+    pdf_sec = client.get(
+        "/api/v1/reportes/citas.pdf?desde=2026-01-01&hasta=2026-01-31"
+    ).content
+
+    auth_as("admin")
+    pdf_admin = client.get(
+        "/api/v1/reportes/citas.pdf?desde=2026-01-01&hasta=2026-01-31"
+    ).content
+
+    nombre_sec = seed_users["secretaria"].nombre.encode("utf-8")
+    nombre_admin = seed_users["admin"].nombre.encode("utf-8")
+
+    assert nombre_sec in pdf_sec and nombre_admin not in pdf_sec
+    assert nombre_admin in pdf_admin and nombre_sec not in pdf_admin

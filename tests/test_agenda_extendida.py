@@ -278,6 +278,97 @@ def test_reporte_agenda_excel_genera_archivo_valido(client, auth_as, seed_users)
     assert "Ana García" in todas_celdas
 
 
+# ───────────────────── 9. Trazabilidad: "Generado por" ─────────────────────
+def test_template_agenda_contiene_generado_por():
+    from jinja2 import Template
+
+    from app.api.v1.endpoints.reportes import _AGENDA_TEMPLATE
+
+    html = Template(_AGENDA_TEMPLATE).render(
+        fecha_emision="x",
+        generado_por="Secre Test",
+        f_medico="Todos", f_especialidad="Todas",
+        f_estado="Todos", f_desde="—", f_hasta="—",
+        citas=[],
+        resumen={"total": 0, "pendientes": 0, "atendidas": 0, "canceladas": 0},
+    )
+    assert "Generado por:" in html
+    assert "Secre Test" in html
+
+
+def test_reporte_agenda_pdf_audita_generacion(client, auth_as, seed_users, session):
+    from sqlmodel import select
+
+    from app.models import AccionAuditoria, Auditoria
+
+    pytest.importorskip("weasyprint")
+    auth_as("secretaria")
+    res = client.get("/api/v1/reportes/agenda/pdf")
+    assert res.status_code == 200
+
+    logs = session.exec(
+        select(Auditoria).where(
+            Auditoria.tabla_afectada == "reportes",
+            Auditoria.accion == AccionAuditoria.CREATE,
+        )
+    ).all()
+    assert any("agenda_pdf" in (log.detalle or "") for log in logs)
+    assert all(log.nombre_usuario == seed_users["secretaria"].nombre for log in logs)
+
+
+def test_reporte_agenda_excel_audita_generacion(client, auth_as, seed_users, session):
+    from sqlmodel import select
+
+    from app.models import AccionAuditoria, Auditoria
+
+    pytest.importorskip("openpyxl")
+    auth_as("secretaria")
+    res = client.get("/api/v1/reportes/agenda/excel")
+    assert res.status_code == 200
+
+    logs = session.exec(
+        select(Auditoria).where(
+            Auditoria.tabla_afectada == "reportes",
+            Auditoria.accion == AccionAuditoria.CREATE,
+        )
+    ).all()
+    assert any("agenda_excel" in (log.detalle or "") for log in logs)
+    assert all(log.nombre_usuario == seed_users["secretaria"].nombre for log in logs)
+
+
+def test_excel_agenda_contiene_generado_por_dos_usuarios(
+    client, auth_as, seed_users
+):
+    """El xlsx debe incluir la línea 'Generado por: X' y X cambia con el actor."""
+    openpyxl = pytest.importorskip("openpyxl")
+    from io import BytesIO
+
+    auth_as("secretaria")
+    res_sec = client.get("/api/v1/reportes/agenda/excel")
+    assert res_sec.status_code == 200
+    wb_sec = openpyxl.load_workbook(BytesIO(res_sec.content))
+    assert wb_sec.active["A4"].value == f"Generado por: {seed_users['secretaria'].nombre}"
+
+    auth_as("admin")
+    res_admin = client.get("/api/v1/reportes/agenda/excel")
+    assert res_admin.status_code == 200
+    wb_admin = openpyxl.load_workbook(BytesIO(res_admin.content))
+    assert wb_admin.active["A4"].value == f"Generado por: {seed_users['admin'].nombre}"
+
+
+@pytest.mark.requires_weasyprint
+def test_pdf_agenda_refleja_dos_usuarios_distintos(client, auth_as, seed_users):
+    auth_as("secretaria")
+    pdf_sec = client.get("/api/v1/reportes/agenda/pdf").content
+    auth_as("admin")
+    pdf_admin = client.get("/api/v1/reportes/agenda/pdf").content
+
+    nombre_sec = seed_users["secretaria"].nombre.encode("utf-8")
+    nombre_admin = seed_users["admin"].nombre.encode("utf-8")
+    assert nombre_sec in pdf_sec and nombre_admin not in pdf_sec
+    assert nombre_admin in pdf_admin and nombre_sec not in pdf_admin
+
+
 # ───────────────────── Extras: datetime ISO en filtros ─────────────────────
 def test_agenda_extendida_acepta_datetime_iso(client, auth_as, seed_users):
     auth_as("secretaria")

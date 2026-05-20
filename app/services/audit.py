@@ -1,6 +1,7 @@
 """Servicio de auditoría — registra todas las acciones críticas."""
 from typing import Optional
 
+from fastapi import Request
 from sqlmodel import Session
 
 from app.core.datetime_utils import ahora_local
@@ -35,3 +36,24 @@ def registrar_auditoria(
         fecha_hora=ahora_local(),
     )
     session.add(log)
+
+
+def registrar_auditoria_reporte(
+    session: Session,
+    *,
+    actor: Usuario,
+    request: Request,
+    tipo: str,
+) -> None:
+    """Helper común para los endpoints de reportes: registra la generación y
+    hace commit dentro de la misma transacción de lectura."""
+    registrar_auditoria(
+        session,
+        usuario=actor,
+        accion=AccionAuditoria.CREATE,
+        tabla="reportes",
+        id_registro=None,
+        detalle=f"Generación de reporte: {tipo}",
+        ip_origen=request.client.host if request.client else None,
+    )
+    session.commit()

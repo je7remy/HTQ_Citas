@@ -2,7 +2,7 @@
 from datetime import date as date_type
 from io import BytesIO
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import StreamingResponse
 from jinja2 import Template
 from sqlmodel import Session, select
@@ -13,6 +13,7 @@ from app.api.v1.endpoints.citas import _construir_agenda_extendida, _parse_fecha
 from app.core.datetime_utils import formatear_fecha_emision, formatear_hora_12
 from app.db.session import get_session
 from app.models import Cita, Medico, Paciente, RolUsuario, Usuario
+from app.services.audit import registrar_auditoria_reporte
 
 router = APIRouter(prefix="/reportes", tags=["reportes"])
 
@@ -56,6 +57,7 @@ _TEMPLATE = """
 <body>
   <h1>Reporte de Citas Médicas</h1>
   <p class="emision">Reporte generado el {{ fecha_emision }}</p>
+  <p class="emision">Generado por: {{ generado_por }}</p>
   <div class="sub">
     Hospital Regional Traumatológico y Quirúrgico Prof. Juan Bosch — SGCM<br/>
     Rango: {{ desde }} a {{ hasta }}
@@ -101,11 +103,12 @@ _TEMPLATE = """
 
 @router.get("/citas.pdf")
 def reporte_citas_pdf(
+    request: Request,
     desde: date_type = Query(...),
     hasta: date_type = Query(...),
     id_medico: int | None = None,
     session: Session = Depends(get_session),
-    _: Usuario = Depends(_staff),
+    actor: Usuario = Depends(_staff),
 ):
     stmt = select(Cita, Paciente, Medico).where(
         Cita.id_paciente == Paciente.id,
@@ -147,9 +150,14 @@ def reporte_citas_pdf(
         desde=desde.isoformat(), hasta=hasta.isoformat(),
         filas=filas, medico_nombre=medico_nombre,
         fecha_emision=fecha_emision,
+        generado_por=actor.nombre or actor.email,
         resumen=resumen,
     )
     pdf_bytes = HTML(string=html_str).write_pdf()
+
+    registrar_auditoria_reporte(
+        session, actor=actor, request=request, tipo="citas"
+    )
 
     return StreamingResponse(
         BytesIO(pdf_bytes),
@@ -210,6 +218,7 @@ _AGENDA_TEMPLATE = """
     La Vega, República Dominicana
   </p>
   <p class="emision">Reporte generado el {{ fecha_emision }}</p>
+  <p class="emision">Generado por: {{ generado_por }}</p>
 
   <div class="filtros">
     <strong>Filtros aplicados:</strong>
@@ -281,6 +290,7 @@ def _filtro_medico_legible(session: Session, id_medico: int | None, busqueda: st
 
 @router.get("/agenda/pdf")
 def reporte_agenda_pdf(
+    request: Request,
     id_medico: int | None = None,
     fecha_desde: str | None = Query(None),
     fecha_hasta: str | None = Query(None),
@@ -288,7 +298,7 @@ def reporte_agenda_pdf(
     especialidad: str | None = None,
     busqueda_medico: str | None = None,
     session: Session = Depends(get_session),
-    _: Usuario = Depends(_secretaria),
+    actor: Usuario = Depends(_secretaria),
 ):
     """PDF de agenda extendida con los mismos filtros que /citas/agenda-extendida."""
     fd = _parse_fecha_param(fecha_desde)
@@ -305,6 +315,7 @@ def reporte_agenda_pdf(
 
     html_str = Template(_AGENDA_TEMPLATE).render(
         fecha_emision=formatear_fecha_emision(),
+        generado_por=actor.nombre or actor.email,
         f_medico=_filtro_medico_legible(session, id_medico, busqueda_medico),
         f_especialidad=especialidad or "Todas",
         f_estado=(estado or "todos").capitalize(),
@@ -320,6 +331,10 @@ def reporte_agenda_pdf(
     )
     pdf_bytes = HTML(string=html_str).write_pdf()
 
+    registrar_auditoria_reporte(
+        session, actor=actor, request=request, tipo="agenda_pdf"
+    )
+
     nombre = f"agenda_{fd or 'inicio'}_{fh or 'fin'}.pdf"
     return StreamingResponse(
         BytesIO(pdf_bytes),
@@ -334,6 +349,7 @@ def _generar_excel_agenda(
     resumen: dict,
     filtros: dict,
     fecha_emision: str,
+    generado_por: str,
 ) -> bytes:
     """Construye el .xlsx con la misma estructura que el PDF."""
     from openpyxl import Workbook
@@ -357,6 +373,9 @@ def _generar_excel_agenda(
     ws["A3"] = f"Reporte generado el {fecha_emision}"
     ws["A3"].font = Font(italic=True, color="9CA3AF", size=10)
     ws.merge_cells("A3:G3")
+    ws["A4"] = f"Generado por: {generado_por}"
+    ws["A4"].font = Font(italic=True, color="9CA3AF", size=10)
+    ws.merge_cells("A4:G4")
 
     # Filtros aplicados
     ws["A5"] = "Filtros aplicados:"
@@ -416,6 +435,7 @@ def _generar_excel_agenda(
 
 @router.get("/agenda/excel")
 def reporte_agenda_excel(
+    request: Request,
     id_medico: int | None = None,
     fecha_desde: str | None = Query(None),
     fecha_hasta: str | None = Query(None),
@@ -423,7 +443,7 @@ def reporte_agenda_excel(
     especialidad: str | None = None,
     busqueda_medico: str | None = None,
     session: Session = Depends(get_session),
-    _: Usuario = Depends(_secretaria),
+    actor: Usuario = Depends(_secretaria),
 ):
     """Excel (.xlsx) de agenda extendida — mismos filtros que el PDF."""
     fd = _parse_fecha_param(fecha_desde)
@@ -454,6 +474,11 @@ def reporte_agenda_excel(
             "hasta": fh.isoformat() if fh else "—",
         },
         fecha_emision=formatear_fecha_emision(),
+        generado_por=actor.nombre or actor.email,
+    )
+
+    registrar_auditoria_reporte(
+        session, actor=actor, request=request, tipo="agenda_excel"
     )
 
     nombre = f"agenda_{fd or 'inicio'}_{fh or 'fin'}.xlsx"

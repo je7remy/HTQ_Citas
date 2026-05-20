@@ -24,7 +24,6 @@ from app.core.datetime_utils import (
 )
 from app.db.session import get_session
 from app.models import (
-    AccionAuditoria,
     Cita,
     Consulta,
     EstadoCita,
@@ -38,7 +37,7 @@ from app.schemas import (
     MedicosDetalleResponse,
     UsuariosResumen,
 )
-from app.services.audit import registrar_auditoria
+from app.services.audit import registrar_auditoria_reporte
 
 router = APIRouter(prefix="/reportes", tags=["reportes"])
 
@@ -96,6 +95,7 @@ _USUARIOS_TEMPLATE = """
     La Vega, República Dominicana
   </p>
   <p class="emision">Reporte generado el {{ fecha_emision }}</p>
+  <p class="emision">Generado por: {{ generado_por }}</p>
 
   <h2>Resumen por rol</h2>
   <table>
@@ -207,6 +207,7 @@ _MEDICOS_TEMPLATE = """
     La Vega, República Dominicana
   </p>
   <p class="emision">Reporte generado el {{ fecha_emision }}</p>
+  <p class="emision">Generado por: {{ generado_por }}</p>
 
   <h2>Listado de médicos activos</h2>
   {% if medicos %}
@@ -387,25 +388,6 @@ def _detalle_medicos(session: Session) -> list[MedicoDetalleStats]:
     return resultado
 
 
-def _registrar_auditoria_reporte(
-    session: Session,
-    *,
-    actor: Usuario,
-    request: Request,
-    tipo: str,
-) -> None:
-    registrar_auditoria(
-        session,
-        usuario=actor,
-        accion=AccionAuditoria.CREATE,
-        tabla="reportes",
-        id_registro=None,
-        detalle=f"Generación de reporte: {tipo}",
-        ip_origen=request.client.host if request.client else None,
-    )
-    session.commit()
-
-
 # ───────────────── Endpoints ─────────────────
 @router.get("/usuarios/resumen", response_model=UsuariosResumen)
 def resumen_usuarios(
@@ -454,6 +436,7 @@ def pdf_usuarios(
     html_str = Template(_USUARIOS_TEMPLATE).render(
         base_css=_BASE_CSS,
         fecha_emision=formatear_fecha_emision(),
+        generado_por=actor.nombre or actor.email,
         resumen_rol=resumen_rol,
         usuarios_por_rol=usuarios_por_rol,
         totales=totales,
@@ -463,7 +446,7 @@ def pdf_usuarios(
     )
     pdf_bytes = HTML(string=html_str).write_pdf()
 
-    _registrar_auditoria_reporte(
+    registrar_auditoria_reporte(
         session, actor=actor, request=request, tipo="usuarios"
     )
 
@@ -517,12 +500,13 @@ def pdf_medicos(
     html_str = Template(_MEDICOS_TEMPLATE).render(
         base_css=_BASE_CSS,
         fecha_emision=formatear_fecha_emision(),
+        generado_por=actor.nombre or actor.email,
         medicos=medicos_ctx,
         resumen=resumen,
     )
     pdf_bytes = HTML(string=html_str).write_pdf()
 
-    _registrar_auditoria_reporte(
+    registrar_auditoria_reporte(
         session, actor=actor, request=request, tipo="medicos"
     )
 

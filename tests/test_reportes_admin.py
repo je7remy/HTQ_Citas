@@ -256,3 +256,78 @@ def test_reporte_genera_registro_auditoria(client, auth_as, seed_users, session)
     assert any("medicos" in (d or "") for d in detalles)
     # El nombre del usuario quedó denormalizado
     assert all(log.nombre_usuario == seed_users["admin"].nombre for log in logs)
+
+
+# ────────────── F) Trazabilidad: "Generado por" ──────────────
+def test_template_usuarios_contiene_generado_por():
+    from jinja2 import Template
+
+    from app.api.v1.endpoints.reportes_admin import _BASE_CSS, _USUARIOS_TEMPLATE
+
+    html = Template(_USUARIOS_TEMPLATE).render(
+        base_css=_BASE_CSS,
+        fecha_emision="x",
+        generado_por="Admin Test",
+        resumen_rol=[],
+        usuarios_por_rol=[],
+        totales={"admin": 0, "secretaria": 0, "medico": 0, "total": 0},
+        top_especialidades=[],
+        top_secretaria=None,
+        top_medico_consultas=None,
+    )
+    assert "Generado por:" in html
+    assert "Admin Test" in html
+
+
+def test_template_medicos_contiene_generado_por():
+    from jinja2 import Template
+
+    from app.api.v1.endpoints.reportes_admin import _BASE_CSS, _MEDICOS_TEMPLATE
+
+    html = Template(_MEDICOS_TEMPLATE).render(
+        base_css=_BASE_CSS,
+        fecha_emision="x",
+        generado_por="Admin Test",
+        medicos=[],
+        resumen={"total_medicos": 0, "total_citas": 0, "total_consultas": 0, "promedio_citas": 0.0},
+    )
+    assert "Generado por:" in html
+    assert "Admin Test" in html
+
+
+@pytest.mark.requires_weasyprint
+def test_pdf_usuarios_refleja_dos_admin_distintos(
+    client, auth_as, seed_users, session
+):
+    """Dos admin distintos generan el mismo reporte → cada PDF lleva su nombre."""
+    admin_b = Usuario(
+        nombre="Admin Bravo",
+        email="adminb@test.do",
+        password_hash=hash_password(TEST_PASSWORD),
+        rol=RolUsuario.admin,
+    )
+    session.add(admin_b)
+    session.commit()
+    session.refresh(admin_b)
+
+    auth_as("admin")
+    pdf_a = client.get("/api/v1/reportes/usuarios/pdf").content
+
+    # Forzamos al cliente como admin_b sin pasar por seed_users
+    from app.api.deps import get_current_user
+    from app.main import app
+
+    app.dependency_overrides[get_current_user] = lambda: admin_b
+    pdf_b = client.get("/api/v1/reportes/usuarios/pdf").content
+
+    assert seed_users["admin"].nombre.encode("utf-8") in pdf_a
+    assert admin_b.nombre.encode("utf-8") not in pdf_a
+    assert admin_b.nombre.encode("utf-8") in pdf_b
+
+
+@pytest.mark.requires_weasyprint
+def test_pdf_medicos_contiene_nombre_admin(client, auth_as, seed_users):
+    auth_as("admin")
+    res = client.get("/api/v1/reportes/medicos/pdf")
+    assert res.status_code == 200
+    assert seed_users["admin"].nombre.encode("utf-8") in res.content
