@@ -122,3 +122,42 @@ CREATE TABLE IF NOT EXISTS respaldos (
 
 CREATE INDEX IF NOT EXISTS idx_respaldos_fecha_inicio ON respaldos(fecha_inicio);
 CREATE INDEX IF NOT EXISTS idx_respaldos_tipo_estado  ON respaldos(tipo, estado);
+
+-- Catalogo administrable de especialidades del HTQPJB (CU-17).
+-- El campo `medicos.especialidad` sigue siendo VARCHAR sin FK; la validacion
+-- contra este catalogo vive en el backend para no introducir migraciones de
+-- datos sobre tablas con FKs existentes.
+CREATE TABLE IF NOT EXISTS especialidades (
+    id              SERIAL PRIMARY KEY,
+    nombre          VARCHAR(50)  UNIQUE NOT NULL,
+    descripcion     VARCHAR(200),
+    activa          BOOLEAN      NOT NULL DEFAULT TRUE,
+    fecha_creacion  TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_especialidades_activa ON especialidades(activa);
+
+-- Siembra inicial: 18 especialidades oficiales del hospital.
+-- ON CONFLICT DO NOTHING hace el bloque idempotente — si init.sql se vuelve
+-- a aplicar (lo cual no deberia ocurrir en condiciones normales porque solo
+-- corre en la primera creacion del volumen) no se duplican registros.
+INSERT INTO especialidades (nombre, activa) VALUES
+    ('Ortopedia y Traumatología', TRUE),
+    ('Cirugía General', TRUE),
+    ('Cirugía Vascular', TRUE),
+    ('Cirugía Torácica', TRUE),
+    ('Cirugía Plástica', TRUE),
+    ('Cirugía Pediátrica', TRUE),
+    ('Cirugía Ginecológica', TRUE),
+    ('Neurocirugía', TRUE),
+    ('Cirugía Maxilofacial', TRUE),
+    ('Anestesiología', TRUE),
+    ('Medicina Interna', TRUE),
+    ('Urología', TRUE),
+    ('Oftalmología', TRUE),
+    ('Otorrinolaringología', TRUE),
+    ('Medicina Física y Rehabilitación', TRUE),
+    ('Radiología y Diagnóstico por Imágenes', TRUE),
+    ('Laboratorio Clínico', TRUE),
+    ('Emergenciología', TRUE)
+ON CONFLICT (nombre) DO NOTHING;

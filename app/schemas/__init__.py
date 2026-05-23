@@ -306,6 +306,27 @@ class MedicosDetalleResponse(BaseModel):
     fecha_generacion: datetime
 
 
+# ============ Especialidades (CU-17) ============
+class EspecialidadCreate(BaseModel):
+    nombre: str = Field(min_length=2, max_length=50)
+    descripcion: Optional[str] = Field(default=None, max_length=200)
+
+
+class EspecialidadUpdate(BaseModel):
+    nombre: Optional[str] = Field(default=None, min_length=2, max_length=50)
+    descripcion: Optional[str] = Field(default=None, max_length=200)
+    activa: Optional[bool] = None
+
+
+class EspecialidadRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    nombre: str
+    descripcion: Optional[str] = None
+    activa: bool
+    fecha_creacion: datetime
+
+
 # ============ Respaldos ============
 TipoRespaldoLiteral = Literal["local", "externo", "nube"]
 ProveedorNubeLiteral = Literal["s3", "gcs", "azure"]

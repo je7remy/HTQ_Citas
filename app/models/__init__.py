@@ -200,6 +200,25 @@ class Auditoria(SQLModel, table=True):
     ip_origen: Optional[str] = Field(default=None, max_length=45)
 
 
+# ----------------------------- Especialidades -----------------------------
+# Catálogo de especialidades médicas del HTQPJB (CU-17).
+# La tabla actúa como tabla de referencia: el campo `medicos.especialidad`
+# se sigue almacenando como string (sin FK), y el helper de validación
+# del módulo de médicos consulta esta tabla en cada alta o edición.
+# Decisión de diseño: no se introduce FK para minimizar el blast radius
+# sobre los tests existentes y conservar retrocompatibilidad con datos
+# pre-CU-17. La unicidad y el contenido del catálogo se garantizan a
+# nivel BD (UNIQUE en nombre) y a nivel servicio (validación en backend).
+class Especialidad(SQLModel, table=True):
+    __tablename__ = "especialidades"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    nombre: str = Field(max_length=50, nullable=False, unique=True, index=True)
+    descripcion: Optional[str] = Field(default=None, max_length=200)
+    activa: bool = Field(default=True, nullable=False)
+    fecha_creacion: datetime = Field(default_factory=ahora_local, sa_column=_ts_column())
+
+
 # ----------------------------- Respaldos -----------------------------
 # Las columnas tipo/proveedor_nube/estado se almacenan como VARCHAR + CHECK
 # (igual que rol en usuarios o estado en citas). Usar Enum Python aquí haría
