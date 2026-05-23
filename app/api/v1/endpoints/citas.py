@@ -1,4 +1,23 @@
-"""CRUD de citas + endpoint feed para FullCalendar.js."""
+"""CRUD de citas + endpoint feed para FullCalendar.js.
+
+CONTEXTO: módulo central de la operación diaria del HTQPJB. La secretaria
+trabaja todo el día agendando y reprogramando citas; cualquier rotura
+o latencia aquí impacta directamente la atención al paciente.
+
+Cuatro flujos críticos:
+  1. /citas (GET/POST/PATCH/DELETE) — CRUD base.
+  2. /citas/agenda-extendida — alimenta la pantalla "Agenda del Día"
+     con datos enriquecidos (paciente + médico + especialidad) en una
+     sola query con triple JOIN.
+  3. /citas/calendar — feed JSON con la forma exacta que espera
+     FullCalendar.js (eventos con color por estado).
+  4. PATCH con cambio de estado a 'cancelada' o reprogramación —
+     comparten la validación de citas_service.validar_disponibilidad.
+
+REGLA DE NEGOCIO IMPORTANTE: el médico NO puede crear/editar/cancelar
+citas. Solo secretaria y admin (decisión del HTQPJB). El médico sí
+puede ver su agenda y registrar consultas (módulo consultas).
+"""
 from datetime import date, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -21,12 +40,20 @@ from app.services.citas_service import validar_disponibilidad
 
 router = APIRouter(prefix="/citas", tags=["citas"])
 
+# _staff: pueden CREAR y MODIFICAR citas (secretaria + admin).
+# _any: pueden LEER citas (médico incluido — necesita ver su agenda).
 _staff = require_roles(RolUsuario.secretaria, RolUsuario.admin)
 _any = require_roles(RolUsuario.secretaria, RolUsuario.admin, RolUsuario.medico)
 
 
 def _parse_fecha_param(valor: str | None) -> date | None:
-    """Acepta 'YYYY-MM-DD' o ISO datetime y devuelve un date. None pasa intacto."""
+    """Acepta 'YYYY-MM-DD' o ISO datetime y devuelve un date. None pasa intacto.
+
+    Por qué tolera ambos formatos: la pantalla "Agenda del Día" del
+    frontend manda a veces el datetime completo (ej. cuando viene de un
+    rango de FullCalendar) y a veces solo la fecha. En vez de obligar
+    al frontend a normalizar, lo hacemos aquí — menos código JS frágil.
+    """
     if not valor:
         return None
     try:
@@ -49,7 +76,22 @@ def _construir_agenda_extendida(
     especialidad: str | None,
     busqueda_medico: str | None,
 ) -> AgendaExtendidaResponse:
-    """Lógica común para agenda extendida (reusada por reportes PDF/Excel)."""
+    """Lógica común para agenda extendida (reusada por reportes PDF/Excel).
+
+    Una sola query con triple JOIN (Cita ⋈ Paciente ⋈ Medico) en vez
+    de N+1: con 50+ citas/día y red lenta del consultorio, traer cada
+    paciente y médico aparte sería notable.
+
+    Filtros aplicables (todos opcionales, se combinan con AND):
+      - id_medico: cita.id_medico == N.
+      - fecha_desde/fecha_hasta: rango inclusivo sobre cita.fecha.
+      - estado: pendiente / atendida / cancelada / "todos" (alias de None).
+      - especialidad: match exacto con Medico.especialidad.
+      - busqueda_medico: ILIKE %patrón% sobre Medico.nombre (insensitive).
+
+    OJO: extraído del endpoint para reutilizarlo desde reportes/agenda/pdf
+    y /agenda/excel. Cambiar la firma rompe esos endpoints.
+    """
     stmt = select(Cita, Paciente, Medico).where(
         Cita.id_paciente == Paciente.id,
         Cita.id_medico == Medico.id,
@@ -156,7 +198,22 @@ def feed_calendar(
     session: Session = Depends(get_session),
     _: Usuario = Depends(_any),
 ):
-    """Devuelve eventos en formato FullCalendar."""
+    """Devuelve eventos en formato FullCalendar.
+
+    El shape del JSON está dictado por la API de FullCalendar.js (la
+    librería del calendario en el frontend). NO modificar campos a menos
+    que también se actualice el código de calendar.html — los eventos
+    se renderizan automáticamente leyendo `id`, `title`, `start`, `color`
+    y `extendedProps`.
+
+    `start` debe ser ISO 8601 con T entre fecha y hora; no usar espacio
+    o FullCalendar lo descarta silenciosamente.
+
+    Paleta:
+      - Pendiente: azul (#2563eb) — destaca lo que falta hacer.
+      - Atendida: verde (#16a34a) — confirma completitud.
+      - Cancelada: gris (#9ca3af) — apagado, no llama la atención.
+    """
     stmt = select(Cita, Paciente, Medico).where(
         Cita.id_paciente == Paciente.id,
         Cita.id_medico == Medico.id,
@@ -196,6 +253,15 @@ def crear(
     session: Session = Depends(get_session),
     actor: Usuario = Depends(_staff),
 ):
+    # Validación en dos capas:
+    # 1) validar_disponibilidad() chequea reglas de negocio y devuelve
+    #    errores semánticos (E-005, E-006) en formato HTTP 409/422 que
+    #    el frontend entiende.
+    # 2) Si dos secretarias agendan EN EL MISMO INSTANTE el mismo slot
+    #    y ambas validaciones pasan (race condition), el UNIQUE parcial
+    #    de la BD garantiza que solo una INSERT lo logre — la otra
+    #    truena con IntegrityError y la traducimos a 409.
+    # Sin la capa 2, podrían crearse dos citas duplicadas en burst.
     validar_disponibilidad(
         session,
         id_medico=payload.id_medico,
@@ -203,6 +269,9 @@ def crear(
         fecha=payload.fecha,
         hora=payload.hora,
     )
+    # id_secretaria se toma del usuario autenticado, NUNCA del payload.
+    # Si el campo llegara por payload, cualquier secretaria podría agendar
+    # "a nombre de" otra y desviar la auditoría.
     cita = Cita(
         id_paciente=payload.id_paciente,
         id_medico=payload.id_medico,
@@ -241,13 +310,20 @@ def actualizar(
     session: Session = Depends(get_session),
     actor: Usuario = Depends(_staff),
 ):
+    # Cubre dos casos en un solo endpoint:
+    #   - Reprogramar: viene fecha y/o hora nueva → revalidar slot.
+    #   - Cambiar estado/motivo: NO requiere revalidar (no toca el slot).
+    # exclude_unset=True hace que solo lleguen los campos que el cliente
+    # mandó, para no resetear los demás a None por accidente.
     cita = session.get(Cita, cita_id)
     if not cita:
         raise HTTPException(404, "Cita no encontrada.")
 
     data = payload.model_dump(exclude_unset=True)
 
-    # Si cambia fecha/hora, revalidar disponibilidad
+    # Si cambia fecha/hora, revalidar disponibilidad.
+    # `excluir_cita_id=cita.id` evita que validar_disponibilidad rechace
+    # la reprogramación tomándose a sí misma como "slot ocupado".
     if "fecha" in data or "hora" in data:
         nueva_fecha = data.get("fecha", cita.fecha)
         nueva_hora = data.get("hora", cita.hora)
@@ -290,7 +366,21 @@ def cancelar(
     session: Session = Depends(get_session),
     actor: Usuario = Depends(_staff),
 ):
-    """No elimina físicamente — marca como cancelada (preserva historial)."""
+    """No elimina físicamente — marca como cancelada (preserva historial).
+
+    IMPORTANTE: aunque el verbo HTTP sea DELETE, la operación interna es
+    UPDATE (estado='cancelada'). El frontend usa DELETE por convención
+    REST y porque deja claro que el slot se libera.
+
+    Razones para NO borrar físicamente:
+    1. Auditoría legal (Ley 172-13) exige preservar la historia.
+    2. Si se borra y luego el paciente reclama "yo tenía cita el día X",
+       no hay rastro.
+    3. Los reportes admin necesitan el conteo de canceladas.
+
+    El índice único parcial de la BD libera el slot automáticamente al
+    cambiar estado → 'cancelada' (no aplica WHERE estado<>'cancelada').
+    """
     cita = session.get(Cita, cita_id)
     if not cita:
         raise HTTPException(404, "Cita no encontrada.")

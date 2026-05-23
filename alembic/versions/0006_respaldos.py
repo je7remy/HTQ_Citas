@@ -6,6 +6,23 @@ Create Date: 2026-05-16
 
 Crea la tabla `respaldos` que registra cada copia de seguridad
 generada por un administrador desde el panel /respaldos.html.
+
+CONTEXTO (CU-16): el admin debe poder generar respaldos manualmente y
+ver el histórico. Cada intento queda en BD aunque falle, con
+mensaje_error explicativo (de qué falló pg_dump, qué USB no estaba
+montado, etc.).
+
+DOS INDICES creados a propósito:
+  - idx_respaldos_fecha_inicio: la pantalla de respaldos ordena
+    DESC por fecha — sin este índice el ORDER BY se vuelve seq scan
+    con miles de filas.
+  - idx_respaldos_tipo_estado: el filtro "ver solo fallidos de tipo
+    nube" lo usa para ir directo sin escanear todo.
+
+VARCHAR + CHECK para tipo/proveedor/estado (no Enum nativo de Postgres)
+por la misma razón que el modelo Respaldo: portabilidad y libertad de
+agregar/quitar valores sin DDL pesado. Ver decisión en
+app/models/__init__.py.
 """
 
 from typing import Sequence, Union

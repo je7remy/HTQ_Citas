@@ -3,6 +3,18 @@
 Revision ID: 0002
 Revises: 0001
 Create Date: 2026-05-10
+
+CONTEXTO: la versión inicial (0001) permitía fecha_nacimiento nullable
+y no tenía campo sexo. Estos dos cambios vienen de la fase 2 del proyecto
+cuando se decidió que los reportes demográficos del HTQPJB exigen ambos
+campos.
+
+Patrón usado: agregar con server_default temporal → rellenar datos
+existentes → quitar default (sólo aplica a sexo).
+
+OJO: el placeholder '1900-01-01' para fechas nulas es deliberadamente
+absurdo para que el admin lo detecte a simple vista en la UI y lo
+corrija. NO usar fechas plausibles como 1990-01-01.
 """
 
 from typing import Sequence, Union

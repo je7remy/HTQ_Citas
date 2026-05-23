@@ -1,4 +1,24 @@
-"""Generación de reportes en PDF con WeasyPrint y Excel con openpyxl."""
+"""Generación de reportes en PDF con WeasyPrint y Excel con openpyxl.
+
+CONTEXTO: la tesis exige reportes imprimibles del HTQPJB. Aquí viven:
+  - /reportes/citas.pdf — listado simple de citas en rango.
+  - /reportes/agenda/pdf — agenda extendida (igual filtros que la
+    pantalla de secretaria) en PDF apaisado.
+  - /reportes/agenda/excel — mismo contenido en .xlsx descargable.
+
+Reutilizan _construir_agenda_extendida de citas.py para mantener
+coherencia: lo que ve la secretaria en pantalla = lo que sale en PDF.
+
+DECISIÓN DE DISEÑO: plantillas Jinja2 embebidas como strings en el
+mismo archivo. NO se separan a /templates/ porque WeasyPrint las usa
+una sola vez y mantener la plantilla al lado del endpoint hace más
+fácil ajustar el reporte cuando piden cambios (la mayoría son ajustes
+visuales pequeños). Si crecen mucho se podrían mover a /resources/.
+
+OJO: las plantillas SIRVEN AL PDF FINAL — cualquier cambio de campo en
+los DTOs (AgendaCitaItem, p.ej.) requiere también ajustar el `{{ x.y }}`
+correspondiente o WeasyPrint generará un PDF sin esos datos.
+"""
 from datetime import date as date_type
 from io import BytesIO
 
@@ -17,6 +37,10 @@ from app.services.audit import registrar_auditoria_reporte
 
 router = APIRouter(prefix="/reportes", tags=["reportes"])
 
+# _staff: cualquier rol autenticado puede pedir el reporte simple de
+#   citas (el médico también lo necesita para imprimir su agenda).
+# _secretaria: agenda extendida y excel son operativos de la secretaria;
+#   el admin queda incluido para soporte/auditoría.
 _staff = require_roles(RolUsuario.secretaria, RolUsuario.admin, RolUsuario.medico)
 _secretaria = require_roles(RolUsuario.secretaria, RolUsuario.admin)
 
@@ -153,12 +177,23 @@ def reporte_citas_pdf(
         generado_por=actor.nombre or actor.email,
         resumen=resumen,
     )
+    # WeasyPrint convierte HTML → PDF en memoria. Importante:
+    # - El @page del CSS define el tamaño A4. Cambiarlo afecta el conteo
+    #   de filas por página y los saltos.
+    # - El PDF generado se devuelve como StreamingResponse para no
+    #   acumular bytes en memoria durante la transferencia.
     pdf_bytes = HTML(string=html_str).write_pdf()
 
+    # Auditoría obligatoria por Ley 172-13: generar un reporte expone
+    # datos personales y debe quedar registrado quién y cuándo.
     registrar_auditoria_reporte(
         session, actor=actor, request=request, tipo="citas"
     )
 
+    # `inline` (no `attachment`): el navegador lo muestra en la pestaña
+    # directamente, sin descargar. La secretaria revisa y decide si
+    # imprimir o guardar. Si se quisiera forzar descarga, cambiar a
+    # `attachment`.
     return StreamingResponse(
         BytesIO(pdf_bytes),
         media_type="application/pdf",
@@ -351,7 +386,22 @@ def _generar_excel_agenda(
     fecha_emision: str,
     generado_por: str,
 ) -> bytes:
-    """Construye el .xlsx con la misma estructura que el PDF."""
+    """Construye el .xlsx con la misma estructura que el PDF.
+
+    Estructura por filas (orientación informativa para mantener):
+      1-4: cabecera institucional (título, hospital, fecha, generador).
+      5-9: filtros aplicados.
+      11-13: tarjeta de resumen (total, pendientes, atendidas, canceladas).
+      16: encabezados de tabla.
+      17+: filas de citas.
+      +2: pie con total general.
+
+    Anchos de columna fijos para que abra bien en Excel sin auto-ajuste.
+
+    Imports locales (openpyxl) a propósito: el módulo openpyxl es pesado
+    para importar y solo se necesita en este endpoint. Cargarlo lazy
+    deja el startup de la app más rápido.
+    """
     from openpyxl import Workbook
     from openpyxl.styles import Alignment, Font, PatternFill
     from openpyxl.utils import get_column_letter

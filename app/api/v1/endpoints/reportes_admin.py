@@ -3,6 +3,21 @@
 Endpoints restringidos a administrador. Exponen versiones JSON (consumidas
 por el frontend para tarjetas/tablas) y versiones PDF generadas con
 WeasyPrint para descarga e impresión.
+
+CONTEXTO: comparten el prefijo /reportes con reportes.py (sin colisión —
+los paths son distintos). Las plantillas están separadas pero comparten
+_BASE_CSS para mantener el estilo institucional consistente entre
+todos los PDFs del SGCM.
+
+Métricas calculadas:
+  - "Top secretaria" y "Top médico" filtran los últimos 30 días desde
+    ahora_local() — la ventana móvil refleja actividad reciente.
+  - tasa_atendidas/tasa_canceladas son porcentajes 0..100 ya redondeados
+    a 2 decimales en backend para evitar inconsistencias entre JS y
+    Python.
+
+OJO: las plantillas usan `{{ '%.1f'|format(x) }}` (no Python f-string) —
+es sintaxis Jinja2. Cambiar formato implica entender Jinja2 filters.
 """
 from collections import Counter
 from datetime import timedelta
@@ -266,6 +281,13 @@ _MEDICOS_TEMPLATE = """
 
 
 # ───────────────── Helpers ─────────────────
+# Mapa de género gramatical por rol para los reportes en español.
+# admin/medico llevan masculino plural (la mayoría son varones por
+# coincidencia del staff actual, pero el género gramatical en español
+# para "los administradores/médicos" usa masculino genérico).
+# secretaria es femenino — "las secretarias activas". El PDF refleja
+# esto literalmente en las etiquetas de la tabla. Si en algún momento
+# se pluraliza neutro, también hay que ajustar el template.
 _GENERO_ROL = {
     RolUsuario.admin: ("activos", "inactivos"),
     RolUsuario.medico: ("activos", "inactivos"),
@@ -306,6 +328,10 @@ def _top_especialidades(session: Session, limite: int = 5) -> list[tuple[str, in
 
 
 def _top_secretaria_ultimo_mes(session: Session) -> Optional[dict]:
+    # GROUP BY id_secretaria + COUNT + ORDER BY DESC + LIMIT 1: la
+    # secretaria con más citas creadas en los últimos 30 días.
+    # `Cita.fecha_registro` (no `Cita.fecha`) — queremos cuándo se
+    # AGENDÓ, no para qué fecha es la cita.
     desde = ahora_local() - timedelta(days=30)
     stmt = (
         select(Cita.id_secretaria, func.count(Cita.id).label("n"))
@@ -322,6 +348,9 @@ def _top_secretaria_ultimo_mes(session: Session) -> Optional[dict]:
 
 
 def _top_medico_consultas_ultimo_mes(session: Session) -> Optional[dict]:
+    # Médico con más consultas REGISTRADAS (no citas atendidas — distinta
+    # métrica) en los últimos 30 días. Hace JOIN consultas ⋈ citas para
+    # acceder a id_medico, que vive en cita.
     desde = ahora_local() - timedelta(days=30)
     stmt = (
         select(Cita.id_medico, func.count(Consulta.id).label("n"))
@@ -338,6 +367,11 @@ def _top_medico_consultas_ultimo_mes(session: Session) -> Optional[dict]:
 
 
 def _detalle_medicos(session: Session) -> list[MedicoDetalleStats]:
+    # DEUDA TÉCNICA conocida: este helper hace N+3 queries por médico
+    # (citas, count consultas, count horarios). Con 9 médicos activos
+    # del HTQPJB es aceptable, pero si la planta crece a 50+ habría
+    # que reescribir con un GROUP BY agregado en una sola query.
+    # Por ahora se prioriza legibilidad sobre rendimiento.
     medicos = session.exec(
         select(Medico).where(Medico.activo == True).order_by(Medico.nombre)  # noqa: E712
     ).all()

@@ -1,4 +1,15 @@
-"""CRUD de pacientes — secretaria y admin."""
+"""CRUD de pacientes — secretaria y admin.
+
+CONTEXTO: el paciente es la entidad raíz del flujo clínico. Los IDs
+de paciente terminan referenciados desde citas → consultas, así que
+cualquier cambio aquí impacta historial e indicadores.
+
+OJO: a diferencia de citas/usuarios, el DELETE de paciente es FÍSICO
+(session.delete). El supuesto es que solo se borra un paciente recién
+registrado sin citas (ej. típo en cédula). Si el paciente ya tiene
+citas, la FK truena con IntegrityError 500 sin manejo elegante — el
+front debería prevenirlo, pero conviene revisar más adelante.
+"""
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, or_, select
@@ -24,6 +35,11 @@ def listar(
     session: Session = Depends(get_session),
     _: Usuario = Depends(_any_user),
 ):
+    # Búsqueda libre con LIKE/ILIKE sobre tres columnas (cédula, nombre,
+    # apellidos). Cédula usa LIKE (case-sensitive — son dígitos), las otras
+    # ILIKE (mayúsculas/minúsculas no importan para el usuario).
+    # Orden por apellidos: convención del HTQPJB (registros físicos).
+    # limit máximo 200 evita que el front pida la base entera de un golpe.
     stmt = select(Paciente)
     if q:
         like = f"%{q}%"
@@ -55,7 +71,9 @@ def crear(
         session.flush()
     except IntegrityError:
         session.rollback()
-        # E-007: cédula duplicada
+        # E-007 = código de error de la tesis para "cédula duplicada".
+        # El frontend reconoce este mensaje y muestra un toast específico
+        # ("Ya existe un paciente con esa cédula").
         raise HTTPException(409, "E-007: La cédula ingresada ya está registrada.")
 
     registrar_auditoria(
@@ -111,6 +129,15 @@ def historial_medico(
     """Historial de consultas atendidas del paciente, opcionalmente filtrado por médico.
 
     Ordenado por fecha+hora descendente (más reciente primero).
+
+    Solo entran consultas de citas en estado 'atendida' — pendiente o
+    cancelada no tendrían información clínica útil.
+
+    El JOIN triple (Consulta ⋈ Cita ⋈ Medico) construye la fila para la
+    pantalla de historial: muestra fecha, médico, diagnóstico y plan en
+    una sola tabla sin que el frontend tenga que cruzar datos. Incluye
+    el campo legacy `observaciones` por si la consulta es vieja y trae
+    info ahí en vez de los campos estructurados (Mejora 3.2).
     """
     if not session.get(Paciente, paciente_id):
         raise HTTPException(404, "Paciente no encontrado.")
@@ -155,6 +182,11 @@ def eliminar(
     session: Session = Depends(get_session),
     actor: Usuario = Depends(_staff),
 ):
+    # CUIDADO: borrado físico, NO soft delete. Solo se usa para pacientes
+    # recién registrados sin citas (corregir typo de cédula). Si el
+    # paciente tiene citas, la FK de citas → pacientes truena con
+    # IntegrityError 500 (no manejado explícitamente). El frontend
+    # debe esconder el botón de eliminar cuando hay citas asociadas.
     p = session.get(Paciente, paciente_id)
     if not p:
         raise HTTPException(404, "Paciente no encontrado.")

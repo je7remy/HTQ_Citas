@@ -31,7 +31,12 @@ _any = require_roles(RolUsuario.secretaria, RolUsuario.admin, RolUsuario.medico)
 
 
 def _buscar_por_nombre_ci(session: Session, nombre: str) -> Optional[Especialidad]:
-    """Busqueda case-insensitive por nombre, para validar unicidad logica."""
+    """Busqueda case-insensitive por nombre, para validar unicidad logica.
+
+    El UNIQUE de la BD es case-sensitive (PostgreSQL no normaliza por
+    default), pero conceptualmente "Cardiología" == "cardiología".
+    Este helper evita que el admin cree duplicados solo por mayúsculas.
+    """
     return session.exec(
         select(Especialidad).where(func.lower(Especialidad.nombre) == nombre.lower())
     ).first()
@@ -147,6 +152,12 @@ def actualizar(
     # catalogo y la tabla referenciadora deben quedar coherentes despues
     # del rename. Sin esto, los medicos veteranos "se quedarian" con el
     # nombre viejo y dejarian de cumplir la validacion.
+    #
+    # IMPORTANTE: este loop es el motivo por el que no usamos FK al
+    # catálogo. Una FK haría que el rename fallara (PostgreSQL no
+    # permite cambiar valor referenciado por defecto) o requeriría
+    # ON UPDATE CASCADE, que añade complejidad operativa. El loop manual
+    # da control: se ve en auditoría qué se cambió y por qué.
     if nombre_anterior and nombre_anterior != esp.nombre:
         for col in (
             Medico.especialidad,
@@ -190,6 +201,11 @@ def eliminar(
     if not esp:
         raise HTTPException(404, "Especialidad no encontrada.")
 
+    # Antes de borrar verificamos que ningún medico la use (ni como
+    # principal ni como secundaria). Si está en uso, devolvemos 409
+    # con la sugerencia explícita: desactivar en vez de eliminar.
+    # Desactivar la oculta de los dropdowns pero la deja como
+    # referencia histórica para los médicos asignados.
     en_uso = _contar_medicos_que_usan(session, esp.nombre)
     if en_uso > 0:
         raise HTTPException(

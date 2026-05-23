@@ -218,6 +218,19 @@
 
   <script src="/static/js/app.js"></script>
   <script>
+    /*
+     * Pantalla "Calendario de Citas" — la principal del SGCM para admin
+     * y secretaria. Tres modales: nueva cita, detalle/reprogramación,
+     * historial médico, reporte PDF.
+     *
+     * Integra FullCalendar.js (vendored offline en /static/vendor/) que
+     * pide eventos al backend en formato JSON específico — ver
+     * /api/v1/citas/calendar (citas.py).
+     *
+     * El médico también puede entrar aquí (vista de lectura): los
+     * botones de Nueva cita / Reporte tienen data-role="staff" y se
+     * ocultan automáticamente vía applyNavPermissions.
+     */
     let currentUserRol = null;
     let medicosList = [];
     let currentCitaId = null;
@@ -249,6 +262,13 @@
     }
 
     function initCalendar() {
+      // Configura FullCalendar con la paleta y restricciones del HTQPJB.
+      // - slotMinTime/MaxTime 07:00-19:00 cubre los horarios reales del
+      //   hospital (mañana 7-12, tarde 14-17, deja margen visual).
+      // - events callback consume /citas/calendar — el backend devuelve
+      //   ya los eventos con color por estado y extendedProps.
+      // - dateClick: en vista de día/semana, clic en un slot abre
+      //   "Nueva cita" pre-llenado con la fecha. Solo admin/secretaria.
       const calendarEl = document.getElementById("calendar");
       calendar = new FullCalendar.Calendar(calendarEl, {
         locale: "es",
@@ -401,6 +421,11 @@
 
     let busquedaTimer;
     document.getElementById("nc-busqueda").addEventListener("input", (e) => {
+      // Debounce de 250ms para el autocomplete de pacientes: cada
+      // keystroke cancela el timer anterior y arma uno nuevo. Evita
+      // bombardear /pacientes?q= mientras la secretaria escribe.
+      // Mínimo 2 caracteres para empezar a buscar — no tiene sentido
+      // pedir cuando hay un solo dígito.
       document.getElementById("nc-paciente-id").value = "";
       clearTimeout(busquedaTimer);
       const q = e.target.value.trim();
@@ -541,6 +566,11 @@
     });
 
     document.getElementById("btn-descargar-reporte").addEventListener("click", async () => {
+      // Descarga binaria del PDF: NO usamos SGCM.api() porque ese
+      // wrapper hace res.json() — aquí necesitamos res.blob().
+      // El fetch crudo igual debe incluir el JWT manualmente.
+      // URL.createObjectURL + <a>.click() + revokeObjectURL es el
+      // patrón estándar para forzar descarga sin abrir nueva pestaña.
       const desde = document.getElementById("rep-desde").value;
       const hasta = document.getElementById("rep-hasta").value;
       const medicoId = document.getElementById("rep-medico-sel").value;

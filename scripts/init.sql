@@ -2,6 +2,34 @@
 -- SGCM — Script DDL inicial
 -- Base de datos: sgcm_db   |   PostgreSQL 15
 -- Fuente: Anexo D de la tesis (HTQPJB, La Vega, R.D.)
+--
+-- CONTEXTO: este archivo se monta como /docker-entrypoint-initdb.d/01_init.sql
+-- en el contenedor postgres del docker-compose. Postgres lo ejecuta UNA
+-- SOLA VEZ, cuando el volumen sgcm_pgdata se crea por primera vez. Para
+-- re-ejecutarlo hay que borrar el volumen: `docker compose down -v`.
+--
+-- CUIDADO: este DDL refleja el ESQUEMA FINAL (equivalente a todas las
+-- migraciones Alembic aplicadas). NO corresponde uno-a-uno con la
+-- migración 0001 — hay renombrados que init.sql ya incorpora y la
+-- cadena Alembic no:
+--    hashed_password → password_hash
+--    created_at → fecha_creacion / fecha_registro / fecha_hora
+--    apellido → apellidos
+--    auditoria.registro_id → id_registro
+--    auditoria.ip → ip_origen
+--    citas: + id_secretaria, + fecha_registro
+--    consultas: sin id_medico/id_paciente redundantes
+--    pacientes: sin campo email (se eliminó)
+--
+-- POR ESO: en producción se usa init.sql + `init_db()` (que llama a
+-- SQLModel.metadata.create_all desde docker-entrypoint.sh). Alembic
+-- NO se ejecuta automáticamente — las migraciones bajo
+-- `alembic/versions/` son documentación histórica de los cambios
+-- incrementales y solo se aplican manualmente si hace falta.
+--
+-- IDEMPOTENCIA: todos los CREATE usan IF NOT EXISTS y el INSERT final
+-- usa ON CONFLICT DO NOTHING. Re-ejecutar el script no rompe nada,
+-- aunque tampoco aplica cambios — para eso están las migraciones.
 -- =====================================================================
 
 CREATE TABLE IF NOT EXISTS usuarios (
@@ -27,6 +55,10 @@ CREATE TABLE IF NOT EXISTS pacientes (
     fecha_registro    TIMESTAMPTZ  DEFAULT NOW()
 );
 
+-- ON DELETE SET NULL en medicos.id_usuario: si se borra el Usuario
+-- vinculado, el Medico no desaparece — queda con id_usuario=NULL
+-- (médico sin cuenta de sistema). Es coherente con el patrón: los
+-- médicos sin usuario son ciudadanos de primera clase en el modelo.
 CREATE TABLE IF NOT EXISTS medicos (
     id                          SERIAL PRIMARY KEY,
     id_usuario                  INTEGER REFERENCES usuarios(id) ON DELETE SET NULL,
@@ -38,6 +70,10 @@ CREATE TABLE IF NOT EXISTS medicos (
     activo                      BOOLEAN      DEFAULT TRUE
 );
 
+-- ON DELETE CASCADE en horarios.id_medico: si se borra físicamente el
+-- Medico, sus horarios desaparecen. En la práctica los médicos se
+-- desactivan (activo=False) y no se borran, así que esto rara vez
+-- dispara — pero por si acaso queda configurado.
 CREATE TABLE IF NOT EXISTS horarios (
     id           SERIAL PRIMARY KEY,
     id_medico    INTEGER REFERENCES medicos(id) ON DELETE CASCADE,
@@ -65,10 +101,19 @@ CREATE TABLE IF NOT EXISTS citas (
 -- Es un índice ÚNICO PARCIAL: ignora citas canceladas, de modo que
 -- al cancelar (CU-08) o reprogramar (CU-07) el horario queda liberado,
 -- como exige el caso de uso P2.4 — sin perder la unicidad para citas activas.
+--
+-- IMPORTANTE: este índice es la ÚLTIMA línea de defensa contra el
+-- doble-booking en condiciones de carrera. Las validaciones de
+-- validar_disponibilidad() cubren el 99% de los casos pero entre dos
+-- secretarias agendando exactamente al mismo instante, el UNIQUE PARTIAL
+-- es el que garantiza que solo una INSERT prospere.
 CREATE UNIQUE INDEX IF NOT EXISTS uq_citas_medico_fecha_hora
     ON citas (id_medico, fecha, hora)
     WHERE estado <> 'cancelada';
 
+-- Índices secundarios: la agenda del día filtra por (fecha, id_medico)
+-- y la pantalla de reportes admin agrupa por id_medico. Sin estos
+-- índices ambas consultas hacen seq scan.
 CREATE INDEX IF NOT EXISTS idx_citas_fecha     ON citas(fecha);
 CREATE INDEX IF NOT EXISTS idx_citas_id_medico ON citas(id_medico);
 
@@ -84,6 +129,12 @@ CREATE TABLE IF NOT EXISTS consultas (
     fecha_registro            TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Tabla de auditoría (Ley 172-13). nombre_usuario denormalizado para
+-- preservar trazabilidad si el usuario referenciado se borra (no se
+-- borra hoy — usamos soft delete — pero la columna lo prevé).
+-- id_usuario sin ON DELETE: si por alguna razón un usuario se borra
+-- físicamente, la fila de auditoría queda con id_usuario apuntando a
+-- vacío y nombre_usuario sigue intacto.
 CREATE TABLE IF NOT EXISTS auditoria (
     id              SERIAL PRIMARY KEY,
     id_usuario      INTEGER REFERENCES usuarios(id),
@@ -96,6 +147,8 @@ CREATE TABLE IF NOT EXISTS auditoria (
     ip_origen       VARCHAR(45)
 );
 
+-- Índice por fecha_hora: la consulta de la pantalla de auditoría
+-- siempre ordena DESC por este campo y filtra por rango.
 CREATE INDEX IF NOT EXISTS idx_auditoria_fecha ON auditoria(fecha_hora);
 
 -- Bitácora de respaldos generados desde el panel admin (/respaldos.html).

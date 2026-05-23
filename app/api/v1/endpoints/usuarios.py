@@ -1,4 +1,18 @@
-"""Gestión de usuarios — restringido a administrador."""
+"""Gestión de usuarios — restringido a administrador.
+
+CONTEXTO: solo el admin entra a este módulo. Sirve para crear cuentas
+nuevas (secretarias, médicos, otros admins), resetear contraseñas
+olvidadas y desactivar usuarios que ya no trabajan en el hospital.
+
+REGLAS:
+  - DELETE es SOFT (activo=False) — preserva auditoría y referencias.
+  - PATCH /password no requiere conocer la password anterior (es
+    "reset por admin", no "cambio por usuario"). En la auditoría se
+    registra "Reset password de X" SIN incluir la nueva password.
+  - filtro sin_perfil_medico se usa en la pantalla de "crear médico":
+    el admin escoge primero un Usuario con rol=medico que aún NO esté
+    vinculado a ningún Medico, evitando duplicar perfiles.
+"""
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -24,6 +38,13 @@ def listar(
     session: Session = Depends(get_session),
     _: Usuario = Depends(_admin_only),
 ):
+    # `sin_perfil_medico` con subquery NOT IN: devuelve usuarios que aún
+    # no aparecen en `medicos.id_usuario`. Lo usa la pantalla de "crear
+    # médico" para poblar el dropdown de Usuario a vincular, evitando
+    # ofrecer cuentas ya asignadas (que crearían inconsistencia 1-a-1).
+    # E711 está deshabilitado a propósito: SQLAlchemy NECESITA `!= None`
+    # para generar `IS NOT NULL` en SQL — un `is not None` haría compare
+    # en Python sin tocar la query.
     stmt = select(Usuario).order_by(Usuario.id)
     if rol:
         stmt = stmt.where(Usuario.rol == rol)
@@ -109,6 +130,10 @@ def cambiar_password(
     El admin no necesita conocer la contraseña anterior. Se reutiliza la
     política y la función de hashing existentes; el detalle de auditoría
     nunca incluye la contraseña ni su hash.
+
+    IMPORTANTE: el detalle de auditoría dice "Reset password de {email}"
+    — NO incluir nunca el valor nuevo ni el hash. Si un día se loggea
+    esta cadena en plano (Sentry, journald), queda escrita la contraseña.
     """
     user = session.get(Usuario, user_id)
     if not user:
@@ -139,7 +164,12 @@ def eliminar(
     user = session.get(Usuario, user_id)
     if not user:
         raise HTTPException(404, "Usuario no encontrado.")
-    # Soft delete por seguridad (preserva FK en auditoría/citas)
+    # Soft delete por seguridad (preserva FK en auditoría/citas).
+    # Si se hiciera DELETE físico:
+    #   - Las FK de citas, auditoría y consultas con id_usuario NOT NULL
+    #     truncarían en cascada o lanzarían IntegrityError 500.
+    #   - Se perdería la trazabilidad histórica que pide la Ley 172-13.
+    # `activo=False` mantiene el registro pero impide login.
     user.activo = False
     session.add(user)
     registrar_auditoria(

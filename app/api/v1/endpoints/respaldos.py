@@ -122,6 +122,12 @@ def eliminar(
     session: Session = Depends(get_session),
     actor: Usuario = Depends(_admin),
 ):
+    # IMPORTANTE: borra el REGISTRO, NO el archivo físico. El .sql en
+    # disco/USB/nube se preserva — el admin debe limpiarlo a mano si
+    # quiere liberar espacio. Esto es deliberado para no perder un
+    # respaldo crítico por accidente. El detalle de auditoría incluye
+    # la ruta destino para que el admin sepa dónde está el archivo
+    # que ya no aparece en la pantalla.
     r = session.get(Respaldo, respaldo_id)
     if not r:
         raise HTTPException(404, "Respaldo no encontrado.")
@@ -150,6 +156,11 @@ def descargar(
     session: Session = Depends(get_session),
     _: Usuario = Depends(_admin),
 ):
+    # Solo respaldos LOCAL se pueden descargar por HTTP — los externos
+    # están en un USB/montaje que el contenedor no puede stremear sin
+    # complicar montajes; los de nube se descargan desde la consola del
+    # proveedor (S3/GCS/Azure). El mensaje de error incluye la ruta
+    # exacta para que el admin sepa a dónde ir.
     r = session.get(Respaldo, respaldo_id)
     if not r:
         raise HTTPException(404, "Respaldo no encontrado.")
@@ -169,6 +180,9 @@ def descargar(
             detail=f"El respaldo no está completado (estado actual: {r.estado}).",
         )
 
+    # 410 GONE (no 404) cuando el archivo desapareció: hace explícito al
+    # admin que el registro existe pero el archivo se perdió/limpió.
+    # 404 sugeriría que la ruta nunca existió.
     ruta = Path(r.ruta_destino)
     if not ruta.exists():
         raise HTTPException(

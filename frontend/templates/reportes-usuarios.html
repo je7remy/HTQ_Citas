@@ -113,6 +113,19 @@
 
   <script src="/static/js/app.js"></script>
   <script>
+    /*
+     * Pantalla "Reportes administrativos" (admin). Combina:
+     *   - 4 KPI cards (total, admin, secretaria, médico) con resumen
+     *     desde /reportes/usuarios/resumen.
+     *   - Tabla completa filtrable por rol + estado.
+     *   - PDF descargable (genera en backend con WeasyPrint).
+     *   - Excel descargable (genera EN CLIENTE con SheetJS — sin pegar
+     *     al backend, evita un endpoint extra).
+     *
+     * DIFERENCIA con /reportes/agenda/excel: aquí el .xlsx lo arma el
+     * frontend con xlsx.full.min.js (vendored offline). El PDF sí lo
+     * arma el backend porque WeasyPrint pasa por el branding institucional.
+     */
     const ROL_BADGE = {
       admin:      "badge--purple",
       secretaria: "badge--teal",

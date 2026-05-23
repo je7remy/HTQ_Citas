@@ -1,4 +1,16 @@
-"""Patrón Strategy para el sistema de respaldos."""
+"""Patrón Strategy para el sistema de respaldos.
+
+CONTEXTO: el CU-16 del SGCM exige que el admin pueda respaldar la BD
+a tres tipos de destino: local (mismo servidor), externo (USB/NFS) y
+nube (S3/GCS/Azure). En vez de un if-else gigante, cada destino es
+una BackupStrategy concreta y el manager elige cuál instanciar.
+
+Añadir un destino nuevo (ej. SFTP) implica:
+  1. Crear app/services/backup/<nombre>.py con una clase que herede
+     BackupStrategy.
+  2. Registrarla en obtener_estrategia() del manager.
+  3. Documentar la configuración en docs/BACKUPS.md.
+"""
 from __future__ import annotations
 
 from abc import ABC, abstractmethod

@@ -1,4 +1,19 @@
-"""Módulo médico: agenda diaria + observaciones de consultas."""
+"""Módulo médico: agenda diaria + observaciones de consultas.
+
+CONTEXTO: este es EL módulo del rol médico. Aquí ve sus citas del día
+y registra el resultado de cada atención. Las reglas son estrictas:
+  - El médico solo puede registrar consultas de SUS PROPIAS citas
+    (chequeado en runtime — el JWT no basta).
+  - No se puede registrar consulta antes del horario de la cita (evita
+    falsos atendimientos antes de que el paciente llegue).
+  - Una cita solo admite UNA consulta (UNIQUE id_cita).
+  - Registrar consulta cambia el estado de la cita a 'atendida' en la
+    misma transacción.
+
+El admin puede registrar consultas también (caso atípico: corregir
+un olvido del médico), pero debe pasar id_medico explícito en el
+payload — no se infiere de su sesión.
+"""
 from datetime import date as date_type
 from datetime import datetime
 
@@ -27,6 +42,12 @@ _medico_only = require_roles(RolUsuario.medico, RolUsuario.admin)
 
 
 def _medico_del_usuario(session: Session, user: Usuario) -> Medico:
+    # Resuelve el Medico vinculado a un Usuario.
+    # Admin NO tiene perfil de médico — fallamos explícito para que el
+    # endpoint exija id_medico en el payload (caso atípico de admin
+    # registrando consulta por médico).
+    # Médico sin Medico vinculado tampoco puede actuar: configuración
+    # incompleta del admin (creó el Usuario pero no el Medico).
     if user.rol == RolUsuario.admin:
         raise HTTPException(400, "Indique id_medico explícitamente para admin.")
     m = session.exec(select(Medico).where(Medico.id_usuario == user.id)).first()
@@ -58,6 +79,10 @@ def registrar_consulta(
     session: Session = Depends(get_session),
     user: Usuario = Depends(_medico_only),
 ):
+    # Validación temporal: comparamos contra el datetime completo en TZ
+    # dominicana. Permitir consulta antes de la cita programada llevaría
+    # a registros "atendida" con horas físicamente imposibles (el médico
+    # no puede haber visto al paciente que aún no llega).
     cita = session.get(Cita, payload.id_cita)
     if not cita:
         raise HTTPException(404, "Cita no encontrada.")
@@ -69,7 +94,9 @@ def registrar_consulta(
             "No se puede registrar la consulta antes del horario programado de la cita.",
         )
 
-    # Si es médico (no admin), debe ser dueño de la cita
+    # Defensa principal del rol médico: solo puede tocar SUS citas.
+    # Admin se salta este check porque puede actuar en nombre de cualquier
+    # médico (rara vez — corrección de olvidos).
     if user.rol == RolUsuario.medico:
         medico = _medico_del_usuario(session, user)
         if cita.id_medico != medico.id:
@@ -85,6 +112,9 @@ def registrar_consulta(
     )
     session.add(consulta)
 
+    # Cambio de estado de la cita en la MISMA transacción: si falla el
+    # INSERT de consulta (UNIQUE id_cita ya tomado), el rollback deshace
+    # también el cambio de estado — la cita queda como pendiente.
     cita.estado = EstadoCita.atendida
     session.add(cita)
 
@@ -92,6 +122,8 @@ def registrar_consulta(
         session.flush()
     except IntegrityError:
         session.rollback()
+        # UNIQUE id_cita activado: el médico ya registró esta consulta antes.
+        # Probablemente doble clic en el botón de guardar.
         raise HTTPException(409, "Esta cita ya tiene una consulta registrada.")
 
     registrar_auditoria(

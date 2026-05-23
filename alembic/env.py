@@ -1,4 +1,24 @@
-"""Configuración de entorno de Alembic para SGCM."""
+"""Configuración de entorno de Alembic para SGCM.
+
+CONTEXTO: en este proyecto Alembic NO se ejecuta automáticamente. El
+docker-entrypoint.sh usa `init_db()` (que llama a
+`SQLModel.metadata.create_all`) para crear las tablas, y por separado
+PostgreSQL corre `init.sql` al crear el volumen por primera vez.
+
+Las migraciones bajo `versions/` quedan como DOCUMENTACIÓN HISTÓRICA
+de los cambios incrementales (0002-0007). Para correr alguna se
+invoca manualmente: `docker compose exec api alembic upgrade head`.
+
+CUIDADO: el archivo 0001_initial.py NO refleja el esquema actual — es
+una captura histórica del primer esquema (antes de los renombrados que
+hoy viven en init.sql). Si corres `alembic upgrade head` desde una BD
+vacía, terminas con un esquema DISTINTO al de producción (ver
+"Observaciones de código" del Lote 3 para los detalles).
+
+`target_metadata = SQLModel.metadata` permite a Alembic detectar drift
+con `alembic revision --autogenerate` — usa los modelos SQLModel como
+fuente de verdad.
+"""
 from logging.config import fileConfig
 
 from alembic import context

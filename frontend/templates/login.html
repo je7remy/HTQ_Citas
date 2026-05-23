@@ -57,6 +57,13 @@
 
   <script src="/static/js/app.js"></script>
   <script>
+    // Página de entrada del SGCM. Punto único de autenticación.
+    // Tras login exitoso, ruteamos al rol:
+    //   - medico → /agenda.html (su agenda del día)
+    //   - admin/secretaria → /calendar.html (calendario general)
+    //
+    // OJO: el ruteo por rol pasa por /auth/me en lugar de leer el JWT
+    // directamente — es la fuente de verdad y maneja desactivaciones.
     lucide.createIcons();
 
     const form     = document.getElementById("login-form");
@@ -68,6 +75,8 @@
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
       errBox.classList.add("is-hidden");
+      // Spinner inline + disabled del botón: evita doble-submit que
+      // emitiría dos LOGIN seguidos en la auditoría.
       btn.disabled = true;
       btnLabel.innerHTML = '<span class="spinner" style="vertical-align:-3px; margin-right:8px;"></span>Verificando…';
       try {
@@ -82,6 +91,8 @@
         } catch (_) { /* si /auth/me falla, caemos al destino por defecto */ }
         window.location.href = destino;
       } catch (err) {
+        // err.message viene de SGCM.login → err.detail del backend
+        // (ej. "Email o contraseña incorrectos" / "Usuario inactivo").
         errMsg.textContent = err.message;
         errBox.classList.remove("is-hidden");
         lucide.createIcons();

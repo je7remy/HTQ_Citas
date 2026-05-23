@@ -104,6 +104,22 @@
 
   <script src="/static/js/app.js"></script>
   <script>
+    /*
+     * Pantalla "Mi Agenda" del MÉDICO. Lista solo sus citas asignadas
+     * para una fecha dada y permite registrar la consulta clínica.
+     *
+     * Regla clave (replicada del backend): NO se puede "Registrar
+     * consulta" antes del horario de la cita. El botón aparece
+     * deshabilitado con leyenda "Disponible desde {fecha} {hora}".
+     * Esta restricción se valida también en el backend
+     * (app/api/v1/endpoints/consultas.py); el frontend la replica
+     * solo para evitar clicks confusos.
+     *
+     * El admin puede entrar aquí pero NO hay flujo definido para que
+     * vea las citas de un médico específico — esta pantalla resuelve
+     * el médico vía _medico_del_usuario(), que falla para admin. El
+     * uso es exclusivo del rol médico en la práctica.
+     */
     function setAlert(box, msg) {
       box.querySelector("span").textContent = msg;
       box.classList.remove("is-hidden");
@@ -171,6 +187,12 @@
                             : cita.estado === "atendida"  ? "badge--green"
                             : "badge--gray";
 
+          // puedeAtender: dos condiciones obligatorias:
+          //  1) Cita está pendiente (no atendida ni cancelada).
+          //  2) Ya pasó la hora programada (no podemos atender al
+          //     paciente antes de que llegue).
+          // Si falla (2), mostramos el botón deshabilitado con la hora
+          // a la que se desbloquea, para que el médico entienda por qué.
           const fechaHoraCita = new Date(cita.fecha + "T" + cita.hora);
           const puedeAtender = cita.estado === "pendiente" && ahora >= fechaHoraCita;
           const hora12 = SGCM.formatHora12(cita.hora);

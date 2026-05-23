@@ -1,4 +1,20 @@
-"""Router agregado de la API v1."""
+"""Router agregado de la API v1.
+
+CONTEXTO: este archivo es el ÚNICO punto donde se registran sub-routers
+de la API. Si añades un endpoint nuevo, primero creas el módulo en
+endpoints/ con su `router = APIRouter(prefix=...)` y luego lo enganchas
+acá. No registrarlo hace que el endpoint quede invisible aunque exista
+el archivo.
+
+OJO: el orden de include_router NO afecta la resolución de rutas
+(FastAPI las matchea por path), pero ayuda a leer el archivo en orden
+de "importancia funcional" (auth primero, luego entidades, luego
+operaciones, luego reportes/auditoría/respaldos).
+
+NOTA: reportes.router y reportes_admin.router comparten el prefijo
+/reportes; FastAPI los mergea por path sin colisión porque los paths
+internos no se solapan (citas.pdf/agenda/* vs usuarios/*, medicos/*).
+"""
 from fastapi import APIRouter
 
 from app.api.v1.endpoints import (

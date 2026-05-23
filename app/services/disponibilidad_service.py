@@ -1,4 +1,15 @@
-"""Servicio: calcula la próxima fecha/hora disponible para un médico."""
+"""Servicio: calcula la próxima fecha/hora disponible para un médico.
+
+CONTEXTO: alimenta el endpoint /medicos/{id}/proxima-disponibilidad que
+el frontend de agenda usa para sugerir "Próximo slot libre del Dr. X".
+Esto evita que la secretaria tenga que probar fechas a ciegas.
+
+Configuración:
+- Horizonte de búsqueda: 30 días (constante _HORIZONTE_DIAS). Más allá
+  consume tiempo y el HTQPJB rara vez agenda con tanto adelanto.
+- Granularidad: slots cada 30 minutos. Coincide con cómo se generan
+  las citas en el seed y con la práctica de consulta del hospital.
+"""
 from datetime import date, datetime, time, timedelta
 
 from sqlmodel import Session, select
@@ -36,6 +47,22 @@ def proxima_disponibilidad(session: Session, id_medico: int) -> dict | None:
     """Retorna el primer slot disponible del médico en los próximos 30 días, o None.
 
     Disponible = slot dentro de un horario activo + sin cita activa registrada.
+
+    Estrategia (O(días × slots × citas_del_día)):
+      1. Trae todos los horarios activos del médico, agrupados por día de semana.
+      2. Itera día por día desde hoy hasta hoy+30.
+      3. Para cada día, genera los slots de 30 min de cada bloque, filtra
+         los que ya pasaron si es hoy, descarta los ocupados, devuelve
+         el primero libre.
+
+    Devuelve None si:
+      - El médico no existe o está inactivo.
+      - No tiene horarios activos.
+      - No hay slots libres en el horizonte (caso extremo de agenda llena).
+
+    El dict incluye versiones legibles en español ("Lunes 15 de mayo de
+    2026" / "2:30 PM") para que el frontend lo muestre directo, sin
+    formateo adicional.
     """
     medico = session.get(Medico, id_medico)
     if not medico or not medico.activo:

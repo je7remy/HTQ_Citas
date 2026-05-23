@@ -6,6 +6,12 @@ Responsabilidades:
 3. Persistir un registro inicial en la tabla ``respaldos`` (estado ``en_progreso``).
 4. Delegar la entrega del archivo a la estrategia indicada.
 5. Verificar integridad y cerrar el registro (``completado`` o ``fallido``).
+
+DECISIÓN DE DISEÑO: el flujo se atrapa en un try/except ancho a propósito.
+La filosofía es "el respaldo NUNCA debe tumbar el endpoint" — si falla,
+deja una fila con estado='fallido' y mensaje_error claro, y el admin
+ve el problema en la pantalla de Respaldos. Subir la excepción haría
+que el endpoint devuelva 500 y la fila quedaría inconsistente.
 """
 from __future__ import annotations
 
@@ -50,6 +56,14 @@ def generar_dump_sql(destino: Optional[Path] = None) -> Path:
 
     Lanza :class:`subprocess.CalledProcessError` si pg_dump falla. El llamador
     (``crear_respaldo``) captura la excepción y deja el registro en ``fallido``.
+
+    OJO: PGPASSWORD viaja por variable de entorno del subproceso — NO
+    aparece en la lista de argumentos (que sí queda visible en `ps aux`).
+    Es la forma estándar y segura de pasarle la password a pg_dump.
+
+    --no-owner y --no-privileges: dejan el .sql portable entre instancias
+    distintas de PostgreSQL. Si se restaura el dump en otro servidor con
+    usuario distinto, no falla por GRANT/OWNER inexistentes.
     """
     if destino is None:
         ts = ahora_local().strftime("%Y%m%d_%H%M%S")
@@ -118,6 +132,17 @@ def crear_respaldo(
     Siempre persiste un registro en la tabla ``respaldos``, incluso cuando el
     flujo falla — así el administrador ve el intento en el histórico con el
     ``mensaje_error`` correspondiente.
+
+    Manejo de excepciones (intencional):
+      - NotImplementedError → estrategia stub (S3/GCS/Azure). Se loggea
+        como warning porque es un caso esperado mientras no se activen
+        los SDK de nube; no spammea Sentry/logs como un error real.
+      - Exception → cualquier otro fallo (pg_dump, FS lleno, hash no
+        coincide). Se loggea con stack trace completo para diagnóstico.
+
+    El registro final SIEMPRE tiene hash_sha256 no nulo: si falló antes
+    de calcularlo, se rellena con 64 ceros como placeholder — la columna
+    es NOT NULL en BD y un INSERT sin valor abortaría la transacción.
     """
     # Normalizamos a strings — el modelo Respaldo guarda VARCHAR, no enums.
     tipo_str: str = tipo.value if hasattr(tipo, "value") else str(tipo)

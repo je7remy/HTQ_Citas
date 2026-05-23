@@ -3,6 +3,26 @@
 Revision ID: 0005
 Revises: 0004
 Create Date: 2026-05-10
+
+CONTEXTO (Mejora 3.2 de la tesis): originalmente el médico registraba
+TODO en un único campo `observaciones` (texto libre). Esto hacía
+imposible:
+  - Generar reportes por diagnóstico CIE-10.
+  - Buscar pacientes por condición principal.
+  - Imprimir un PDF clínico estructurado.
+
+Estrategia de migración:
+  1. Agregar 5 columnas nullable.
+  2. Mover `observaciones` viejo → `motivo_consulta` (lo que más se
+     parece semánticamente — qué dijo el paciente al entrar).
+  3. Marcar `condicion_principal` con placeholder explícito en datos
+     legacy: "(no registrado en formato anterior)" para que sea visible
+     en historial y el médico pueda actualizarlo si necesita.
+  4. Conservar `observaciones` como nullable para no perder nada.
+
+OJO: el campo `observaciones` NO se elimina. Sigue ahí para datos
+históricos. La UI moderna usa los 5 campos estructurados; la consulta
+de historial muestra `observaciones` SOLO si los otros están vacíos.
 """
 
 from typing import Sequence, Union

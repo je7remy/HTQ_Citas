@@ -7,6 +7,20 @@ ejecutar el seed dos veces no duplica datos.
 
 Generan además registros de auditoría coherentes con cada operación,
 respetando el modelo de auditoría transaccional exigido por la Ley 172-13.
+
+CONTEXTO: el seed se ejecuta por el docker-entrypoint cuando la variable
+de entorno SGCM_SEED=true. En .env normalmente se deja en false para
+producción y solo se pone true al hacer un demo o reset de datos.
+
+Cifras objetivo del seed (validadas en tests):
+  - 1 admin + 4 secretarias + 6 médicos (5 activos, 1 inactivo) con cuenta
+  - 4 médicos extra SIN cuenta (3 activos, 1 inactivo)
+  - ~40 pacientes con cédulas dominicanas válidas
+  - ~50 citas distribuidas por estado y por fecha
+  - 1 consulta por cada cita atendida
+
+Para correr el seed manualmente: `docker compose exec api python -m
+app.scripts.seed_cli` (ver scripts/).
 """
 from __future__ import annotations
 
@@ -36,9 +50,14 @@ from app.models import (
 logger = logging.getLogger(__name__)
 
 # Semilla determinista — el seed reproducible facilita el debugging y la idempotencia.
+# El valor 20260515 es solo una fecha cualquiera; cambiarlo regenera todo
+# distinto (otros nombres, otras cédulas) sin afectar la corrección.
 _SEED = 20260515
 
 # Credenciales públicas (también documentadas en README.md).
+# IMPORTANTE: estas son credenciales DE DEMO/TESIS. En producción real,
+# tras el primer login del admin DEBE cambiar la password. El sistema
+# no lo fuerza hoy — es deuda técnica conocida.
 ADMIN_EMAIL = "admin@htqpjb.gob.do"
 ADMIN_PASSWORD = "Admin123!"
 SECRETARIA_PASSWORD = "Secretaria123!"
@@ -63,6 +82,17 @@ except Exception:  # pragma: no cover — fallback sin Faker
 def _digito_verificador_cedula(primeros_diez: str) -> int:
     """Calcula el dígito verificador de una cédula dominicana (módulo 10,
     pesos alternados 1-2 sobre los primeros 10 dígitos).
+
+    Algoritmo oficial JCE (Junta Central Electoral): variante del
+    algoritmo de Luhn:
+      1. Multiplica cada uno de los 10 dígitos por su peso (1,2,1,2...).
+      2. Si el producto >= 10, le resta 9 (equivalente a sumar sus dígitos).
+      3. Suma todos los productos.
+      4. El dígito verificador es (10 - suma_mod_10) % 10.
+
+    Ejemplo: 402-12345-6 (primeros 10 = "4021234567")
+       4·1=4, 0·2=0, 2·1=2, 1·2=2, 2·1=2, 3·2=6, 4·1=4, 5·2=10→1, 6·1=6, 7·2=14→5
+       suma=32 → (10 - 32%10) % 10 = (10-2)%10 = 8
     """
     pesos = (1, 2) * 5
     suma = 0
@@ -87,6 +117,10 @@ def generar_cedula_dominicana(rng: random.Random) -> str:
 
     El primer bloque (001–090) representa el código municipal; usamos un rango
     conservador que cubre municipios reales de R.D.
+
+    OJO: este generador es solo para SEED — no para validar cédulas reales.
+    No garantiza que el código municipal corresponda EXACTAMENTE a un
+    municipio existente, solo que está en un rango plausible.
     """
     municipio = f"{rng.randint(1, 90):03d}"
     serie = f"{rng.randint(0, 9999999):07d}"
@@ -500,6 +534,11 @@ def seed_usuarios(session: Session) -> dict[str, Usuario]:
     """Crea el conjunto base de usuarios. Devuelve mapa email -> Usuario.
 
     Idempotente: cada usuario se busca por email antes de crearse.
+
+    Audita CADA alta con el admin como actor (incluso el alta del propio
+    admin, que aparece como auto-creado). En la primera ejecución todo
+    queda registrado; en re-ejecuciones no se crea nada nuevo y no se
+    audita nada nuevo.
     """
     creados: dict[str, Usuario] = {}
     nuevos: list[Usuario] = []
@@ -551,6 +590,12 @@ def seed_medicos(
 
     Devuelve la lista completa de médicos (existentes + nuevos).
     Idempotente: por usuario vinculado o por (nombre, especialidad).
+
+    OJO: `nombre.removeprefix("Dr. ").removeprefix("Dra. ")` — el campo
+    `medicos.nombre` se almacena SIN el prefijo "Dr./Dra." porque ese
+    prefijo es presentacional. El frontend lo reañade para mostrar. Si
+    se guardara con prefijo, las búsquedas tendrían que normalizar y la
+    auditoría se ensuciaría.
     """
     if usuarios is None:
         usuarios = {u.email: u for u in session.exec(select(Usuario)).all()}
@@ -806,6 +851,16 @@ def seed_citas(
       - 30% pendientes para hoy y los próximos 3 días
 
     Idempotente: si ya hay citas, no crea nuevas.
+
+    La mezcla de estados está pensada para que la UI tenga datos
+    interesantes desde el primer login: la agenda del día se ve poblada,
+    los reportes muestran tasas no triviales y la pantalla de historial
+    de pacientes tiene contenido. Si todo fuera "pendiente", el demo
+    quedaría pelado.
+
+    El set `ocupados` evita doble-booking entre citas no canceladas
+    creadas en este mismo seed — el índice único de BD también lo
+    bloquearía, pero descartando antes evitamos IntegrityError ruidosos.
     """
     existentes = session.exec(select(Cita)).all()
     if existentes:
@@ -1036,6 +1091,11 @@ def reset_datos(session: Session) -> None:
 
     No toca el esquema; solo trunca los datos. Útil en dev para volver
     a un estado limpio antes de re-sembrar.
+
+    CUIDADO: ESTO BORRA TODOS LOS DATOS. La CLI lo expone con flag
+    --reset y pide confirmación explícita. Llamarlo desde código sin
+    intención = adiós a todo el histórico clínico. No invocar desde
+    endpoints, jobs ni middleware bajo ninguna circunstancia.
     """
     # Orden inverso al de creación para respetar FKs.
     for model in (Consulta, Cita, Horario, Medico, Paciente, Auditoria, Usuario):

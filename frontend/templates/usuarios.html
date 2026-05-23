@@ -183,6 +183,21 @@
 
   <script src="/static/js/app.js"></script>
   <script>
+    /*
+     * Pantalla "Usuarios". CU-02. Solo admin.
+     *
+     * Tres modales: crear, editar, reset de contraseña.
+     *
+     * IMPORTANTE: el endpoint NO permite cambiar email. Por eso el
+     * formulario de editar no tiene campo email — si el admin necesita
+     * cambiar el email, debe crear usuario nuevo y desactivar el viejo
+     * (preserva auditoría y referencias).
+     *
+     * La validación de confirmación de contraseña vive solo en cliente
+     * (nueva === confirmar). El backend recibe únicamente `nueva_password`.
+     * Si se brincara la validación, el peor caso es que el admin guarde
+     * una contraseña diferente a la que pensaba — no rompe nada.
+     */
     function setAlert(box, msg) {
       box.querySelector("span").textContent = msg;
       box.classList.remove("is-hidden");

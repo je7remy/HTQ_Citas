@@ -1,9 +1,20 @@
+# Orquestación de los tres servicios del SGCM:
+#   - db: PostgreSQL 15 con datos persistentes en volumen nombrado.
+#   - api: FastAPI/uvicorn (build local). Solo expuesto internamente.
+#   - nginx: reverse proxy + sirve los estáticos del frontend.
+#
+# CUIDADO: cambiar el orden de los servicios no afecta arranque (el
+# orden lo dicta depends_on), pero conviene mantener db → api → nginx
+# para que se lea de menor a mayor dependencia.
 services:
   db:
     image: postgres:15-alpine
     container_name: sgcm_db
     restart: unless-stopped
 
+    # Puerto expuesto al host para conexión directa desde herramientas
+    # de admin (DBeaver, pgAdmin) durante desarrollo. En producción
+    # debería comentarse o restringirse por firewall.
     ports:
       - "5432:5432"
 
@@ -11,13 +22,26 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
+      # TZ + PGTZ: dos variables distintas, ambas necesarias. TZ marca
+      # el reloj del SO del contenedor, PGTZ marca la zona que PostgreSQL
+      # usa al servir NOW(), CURRENT_TIMESTAMP, etc. Sin PGTZ, la BD
+      # devuelve hora UTC aunque el SO esté en RD.
       TZ: America/Santo_Domingo
       PGTZ: America/Santo_Domingo
 
     volumes:
+      # Volumen nombrado: los datos sobreviven a `docker compose down`
+      # pero se pierden con `down -v`. Hacer backup antes de -v si hay
+      # datos productivos.
       - sgcm_pgdata:/var/lib/postgresql/data
+      # Monta init.sql en el directorio que PostgreSQL ejecuta al
+      # crear el volumen por primera vez. `:ro` para que el script
+      # no pueda mutarse desde dentro del contenedor.
       - ./scripts/init.sql:/docker-entrypoint-initdb.d/01_init.sql:ro
 
+    # Healthcheck: pg_isready es la forma estándar de verificar que
+    # Postgres responde. La api espera a que esto pase verde antes de
+    # arrancar (depends_on.condition: service_healthy).
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 10s
@@ -39,17 +63,32 @@ services:
       # Mantener false en producción
       SGCM_SEED: ${SGCM_SEED:-false}
 
+    # condition: service_healthy → la api NO arranca hasta que el
+    # healthcheck de db pase verde. Sin esto, init_db() del entrypoint
+    # podría tronar al intentar conectar antes de que Postgres acepte
+    # conexiones.
     depends_on:
       db:
         condition: service_healthy
 
+    # `expose` (no `ports`): solo accesible desde la red interna del
+    # compose. Nginx es el que enruta el tráfico al api por nombre de
+    # servicio. Mantener cerrado al host: si abriéramos 8000 al exterior,
+    # se brincaría Nginx y los rate-limits/headers de seguridad.
     expose:
       - "8000"
 
     volumes:
       # Respaldos locales (CU-16): persisten entre rebuilds del contenedor.
+      # CUIDADO: si quitas este volumen, los .sql generados desaparecen
+      # cada vez que se reconstruye la imagen del api. El registro en
+      # la tabla `respaldos` quedaría apuntando a archivos inexistentes.
       - sgcm_backups:/var/backups/sgcm
 
+  # Nginx: cara pública. Sirve los HTML/CSS/JS estáticos y proxy_pass
+  # al api para todo lo bajo /api/v1/*. La config detallada vive en
+  # nginx/default.conf — no la documentamos aquí porque no es Python
+  # ni SQL ni JS del SGCM (config de infra estándar).
   nginx:
     image: nginx:1.27-alpine
     container_name: sgcm_nginx
@@ -58,6 +97,9 @@ services:
     environment:
       TZ: America/Santo_Domingo
 
+    # depends_on sin condition: Nginx puede arrancar antes que el api
+    # esté listo y reintentará al primer request — no es crítico que
+    # el api responda al instante.
     depends_on:
       - api
 
@@ -66,8 +108,14 @@ services:
 
     volumes:
       - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      # frontend/ se monta como solo lectura. Los HTML y JS son
+      # archivos estáticos que se cargan al instante; cambios en
+      # frontend/ se ven en vivo sin rebuild del contenedor (solo
+      # hace falta refresh del navegador).
       - ./frontend:/usr/share/nginx/html:ro
 
+# Volúmenes nombrados — gestionados por docker y persisten entre `down`/`up`.
+# Solo `docker compose down -v` los borra.
 volumes:
   sgcm_pgdata:
   sgcm_backups:

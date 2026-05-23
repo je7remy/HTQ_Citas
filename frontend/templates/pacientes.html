@@ -123,6 +123,23 @@
 
   <script src="/static/js/app.js"></script>
   <script>
+    /*
+     * Pantalla "Pacientes". Listado paginable, búsqueda incremental,
+     * CRUD de pacientes (alta/edición/baja).
+     *
+     * Acceso: todos los roles autenticados ven el listado (médico
+     * necesita buscar pacientes para historial). Solo admin/secretaria
+     * pueden CREAR/EDITAR/ELIMINAR — los botones llevan data-role="staff"
+     * y se ocultan automáticamente.
+     *
+     * CÉDULA: al editar la deshabilitamos (cedula.disabled = true)
+     * porque cambiarla es operativamente raro — el flujo correcto sería
+     * crear un paciente nuevo. El backend acepta PATCH sin cedula.
+     *
+     * El telefono se desformatea antes de enviar al backend
+     * (SGCM.stripDigits) para guardar solo los dígitos, manteniendo la
+     * presentación con paréntesis y guiones solo en UI.
+     */
     let currentUserRol = null;
 
     (async () => {
@@ -272,6 +289,9 @@
       } catch (e) { setAlert(e.message); }
     });
 
+    // Debounce de 250ms para la búsqueda en el listado.
+    // Mismo patrón que en calendar.html — evita disparar /pacientes?q=
+    // en cada keystroke.
     let searchTimer;
     document.getElementById("search").addEventListener("input", (e) => {
       clearTimeout(searchTimer);

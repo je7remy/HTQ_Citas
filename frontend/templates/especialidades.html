@@ -152,6 +152,22 @@
 
   <script src="/static/js/app.js"></script>
   <script>
+    /*
+     * Pantalla "Especialidades" (CU-17). CRUD del catálogo. Solo admin.
+     *
+     * Tres operaciones desde la tabla:
+     *   - Editar: cambia nombre/descripción/activa.
+     *   - Toggle: activar/desactivar de un clic.
+     *   - Eliminar: solo permitido si NO hay médicos asignados (el
+     *     backend devuelve 409 con mensaje sugerente; el frontend
+     *     lo muestra tal cual).
+     *
+     * El conteo de "Médicos asignados" se calcula EN CLIENTE haciendo
+     * un /medicos extra y contando matches por nombre. Es más simple
+     * que ampliar el contrato del API y los volúmenes son chicos (~20
+     * especialidades × 13 médicos). Si el HTQPJB crece, conviene
+     * exponer el conteo desde el backend.
+     */
     let currentRol = null;
     let cacheMedicosPorEspecialidad = new Map();
 

@@ -196,6 +196,24 @@
 
   <script src="/static/js/app.js"></script>
   <script>
+    /*
+     * Pantalla "Respaldos" (CU-16). Solo admin.
+     *
+     * Tres botones de acción rápida (local / externo / nube) y un
+     * histórico filtrable. El botón de nube está deshabilitado a
+     * propósito — el backend tiene stubs (raise NotImplementedError)
+     * que solo se activan al instalar el SDK del proveedor.
+     *
+     * Toast system propio (NO librería): la API de respaldos puede
+     * tardar varios segundos (pg_dump + verificación de hash + entrega
+     * al destino), así que se notifica al usuario en cada paso para
+     * que sepa que el sistema no se colgó.
+     *
+     * Las filas con mensaje_error se duplican: la fila principal
+     * normal + una segunda fila con background rojo claro que muestra
+     * la causa del fallo. Esto ayuda al admin a diagnosticar sin tener
+     * que entrar al detalle.
+     */
     function setAlert(box, msg) {
       box.querySelector("span").textContent = msg;
       box.classList.remove("is-hidden");
@@ -218,6 +236,11 @@
     }
 
     function formatBytes(n) {
+      // Formato humano para tamaño de archivo. Log base 1024 elige la
+      // unidad (B, KB, MB, GB, TB) y se aplica toFixed según unidad
+      // (no se muestran decimales en bytes).
+      // OJO: distinguimos null/undefined (—) de 0 (0 B). Sin el `n === 0`
+      // explícito, !n trataría 0 como "no disponible" y mostraría guión.
       if (!n && n !== 0) return "—";
       if (n === 0) return "0 B";
       const u = ["B","KB","MB","GB","TB"];

@@ -1,4 +1,15 @@
-"""Lógica de negocio para citas: validación de disponibilidad."""
+"""Lógica de negocio para citas: validación de disponibilidad.
+
+CONTEXTO: extraído del endpoint de citas para que la validación sea
+reutilizable entre POST /citas (crear) y PATCH /citas/{id} (reprogramar).
+Centraliza los códigos de error E-005 (horario ocupado) y E-006 (fuera
+de horario del médico) de la tesis (Anexo P).
+
+CUIDADO: TODO endpoint que cree o reprograme citas DEBE pasar por aquí.
+Saltarse esta validación deja la puerta abierta a doble-booking en
+condición de carrera (la BD seguiría cubriendo, pero con un IntegrityError
+crudo que el frontend no sabe traducir).
+"""
 from datetime import date, datetime, time
 
 from fastapi import HTTPException

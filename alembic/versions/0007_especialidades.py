@@ -9,6 +9,26 @@ desde el panel admin. Se siembran las 18 especialidades iniciales tomadas del
 catalogo legado (`app/core/especialidades.py`). El campo `medicos.especialidad`
 se conserva como VARCHAR (sin FK) para no romper la base instalada; la
 validacion contra esta tabla se hace a nivel de servicio en el backend.
+
+CONTEXTO (CU-17): antes el catálogo vivía hardcodeado en un módulo Python.
+Cada vez que el HTQPJB quería agregar/renombrar una especialidad había que
+modificar código y desplegar. Ahora el admin lo hace desde la pantalla
+/especialidades.html.
+
+DECISIÓN: no usar FK desde `medicos.especialidad` al catálogo porque:
+  - Hay registros legacy de médicos con especialidades que tal vez no
+    estén en el catálogo inicial (datos importados).
+  - El rename necesita propagar a `medicos.especialidad` (la hace el
+    endpoint PATCH en código de aplicación), no romper.
+  - Eliminar especialidad se chequea contra `medicos` por código, no
+    se delega a una restricción ON DELETE RESTRICT.
+
+OJO: el bulk_insert se duplica con init.sql (ambos insertan las 18
+especialidades). En instalación nueva no hay conflicto porque
+docker-entrypoint NO ejecuta `alembic upgrade` automáticamente — solo
+corre init_db() (SQLModel create_all) e init.sql. El bulk_insert
+SOLO importa si alguien corre manualmente `alembic upgrade head`
+sobre una BD que pase por 0006 hacia 0007.
 """
 
 from typing import Sequence, Union

@@ -5,6 +5,26 @@ Revises:
 Create Date: 2026-04-11
 
 Crea todas las tablas del Anexo D y el ÍNDICE ÚNICO PARCIAL en citas.
+
+CONTEXTO HISTÓRICO: este archivo refleja el esquema tal como existía en
+abril 2026, ANTES de los renombrados que hoy viven en init.sql:
+  - hashed_password → password_hash
+  - created_at → fecha_creacion / fecha_registro / fecha_hora
+  - apellido → apellidos
+  - registro_id → id_registro, ip → ip_origen (auditoria)
+  - citas faltaba id_secretaria, fecha_registro
+  - consultas tenía id_medico/id_paciente redundantes (vía cita)
+  - pacientes tenía un campo email extra que se eliminó
+
+Las migraciones 0002-0007 NO corrigen esos nombres. La sincronización
+real entre Alembic y el esquema productivo se hace por el camino:
+   1) `init.sql` corre al primer arranque y crea el esquema FINAL.
+   2) `alembic stamp head` marca todas las revisiones como aplicadas.
+Por eso `alembic upgrade head` desde 0 produce un esquema diferente al
+de producción — NO usarlo sobre una BD vacía.
+
+CUIDADO: si tocas este archivo, asegúrate de NO afectar el orden de
+revisiones (revision/down_revision). Cambiarlos rompe la cadena.
 """
 
 from typing import Sequence, Union
@@ -95,6 +115,11 @@ def upgrade() -> None:
 
     # ÍNDICE ÚNICO PARCIAL — núcleo de la lógica anti-duplicados (Anexo D)
     # Solo en citas con estado != 'cancelada'. Permite reutilizar slot tras cancelación.
+    #
+    # POR QUÉ raw SQL en vez de sa.Index con `postgresql_where`: en la
+    # versión de Alembic usada al escribir esta migración, autogenerate
+    # no detectaba bien índices parciales. El raw SQL deja la intención
+    # explícita y portátil al esquema de PostgreSQL.
     op.execute(
         """
         CREATE UNIQUE INDEX uq_citas_medico_fecha_hora

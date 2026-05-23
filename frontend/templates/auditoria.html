@@ -119,6 +119,21 @@
 
   <script src="/static/js/app.js"></script>
   <script>
+    /*
+     * Pantalla "Auditoría" (CU-15). Solo admin. Tabla paginada que
+     * lista todas las acciones registradas en la tabla `auditoria`.
+     *
+     * Paginación clásica con limit/offset (25 por página). El total
+     * llega en cada respuesta del backend para pintar "Página X de N".
+     *
+     * Las acciones (CREATE/UPDATE/DELETE/LOGIN) tienen colores fijos —
+     * NO inventar valores nuevos sin actualizar también COLOR_ACCION y
+     * el select del filtro.
+     *
+     * El dropdown "Tabla" solo lista las entidades operativas comunes.
+     * Si auditas operaciones sobre `especialidades` o `respaldos`,
+     * estas opciones no están — habría que ampliar el dropdown manualmente.
+     */
     const LIMIT = 25;
     let offset = 0;
     let total = 0;

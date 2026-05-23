@@ -1,4 +1,23 @@
-"""CRUD de médicos y gestión de horarios."""
+"""CRUD de médicos y gestión de horarios.
+
+CONTEXTO: módulo que vive entre dos roles (admin para escribir, todos
+para leer). Maneja dos entidades acopladas:
+  - Medico: la persona, su especialidad y posible cuenta Usuario.
+  - Horario: las franjas de atención por día de semana.
+
+Flujos especiales:
+  - POST /medicos/con-usuario: alta transaccional de Usuario + Medico
+    en un solo paso para evitar usuarios huérfanos.
+  - PATCH con cambio de especialidad: pasa por _validar_especialidades
+    que consulta el catálogo CU-17.
+  - DELETE /horarios/{id}: es SOFT delete (activo=False), no físico —
+    los horarios viejos siguen siendo necesarios para auditar citas
+    pasadas sin que aparezcan en la agenda actual.
+
+REGLA: el campo `nombre` de Medico se almacena SIN "Dr."/"Dra." (el
+frontend lo añade al mostrar). El helper `_strip_doctor_prefix` lo
+limpia automáticamente en CREATE y PATCH.
+"""
 import re
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -29,11 +48,24 @@ _MSG_ESPECIALIDAD_INVALIDA = (
     "Especialidad inválida. Use uno de los valores oficiales del hospital."
 )
 
+# Regex que matchea prefijos profesionales al inicio:
+#   "Dr. Juan"      → "dr." con punto
+#   "Dra Marta"     → "dra" sin punto
+#   "Doctor Pedro"  → "doctor "
+#   "Doctora Ana"   → "doctora "
+# El `\s+` exige al menos un espacio después; sin eso "Dramaturgo" se
+# truncaría a "maturgo".
 _PREFIJO_DR = re.compile(r"^(dra?\.?\s+|doctor[a]?\s+)", re.IGNORECASE)
 
 
 def _strip_doctor_prefix(nombre: str) -> str:
-    """Elimina prefijo Dr./Dra./Doctor/Doctora al inicio del nombre."""
+    """Elimina prefijo Dr./Dra./Doctor/Doctora al inicio del nombre.
+
+    Llamada SIEMPRE en CREATE y PATCH para mantener invariante: la BD
+    nunca guarda el prefijo. El frontend añade "Dr."/"Dra." al pintar
+    según el género que él decide (hoy fijo "Dr." porque no tenemos
+    campo sexo en Medico — ver observaciones).
+    """
     return _PREFIJO_DR.sub("", nombre).strip()
 
 
@@ -60,7 +92,18 @@ def _validar_especialidades(
     secundaria_1: str | None,
     secundaria_2: str | None,
 ) -> None:
-    """Valida principal + secundarias contra el catálogo y la unicidad."""
+    """Valida principal + secundarias contra el catálogo y la unicidad.
+
+    Tres reglas:
+      1. Cada valor debe existir en `especialidades` y estar `activa`.
+      2. No se permite repetir (ej. principal=Cirugía y secundaria_1=Cirugía).
+      3. None solo se permite en secundarias (la principal es obligatoria).
+
+    OJO: usamos validación a nivel servicio porque la tabla `medicos`
+    NO tiene FK al catálogo (ver decisión en app/models/__init__.py).
+    Si el admin renombra una especialidad, el endpoint PATCH de
+    /especialidades propaga el rename a esta tabla.
+    """
     _validar_especialidad(session, principal)
     if secundaria_1 is not None:
         _validar_especialidad(session, secundaria_1)
@@ -189,6 +232,10 @@ def crear_con_usuario(
     session: Session = Depends(get_session),
     actor: Usuario = Depends(_admin),
 ):
+    # Endpoint combinado: crea Usuario + Medico en una sola transacción.
+    # Si cualquier paso falla, el rollback automático de SQLModel deja
+    # la BD limpia (no queda usuario huérfano sin perfil médico).
+    # Auditoría única al final con detalle compuesto.
     _validar_especialidades(
         session,
         payload.medico.especialidad,
@@ -318,6 +365,11 @@ def eliminar_horario(
     session: Session = Depends(get_session),
     actor: Usuario = Depends(_admin),
 ):
+    # Soft delete (activo=False), NO físico. Razón: las citas pasadas
+    # validaban contra el horario activo de su momento; si lo eliminamos
+    # físicamente, queda la cita "huérfana" sin franja que la justifique.
+    # El servicio de disponibilidad ya filtra por activo=True, así que
+    # el horario inactivo desaparece de la agenda sin perder historia.
     h = session.get(Horario, horario_id)
     if not h:
         raise HTTPException(404, "Horario no encontrado.")

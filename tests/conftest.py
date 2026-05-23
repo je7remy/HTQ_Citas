@@ -4,6 +4,27 @@ Notas:
 - Para tests usamos SQLite in-memory en lugar de PostgreSQL para velocidad y aislamiento.
 - Los CHECK constraints y UNIQUE de SQLModel/SQLAlchemy también funcionan en SQLite,
   por lo que podemos validar la restricción UNIQUE(id_medico, fecha, hora).
+
+CONTEXTO: este conftest es el corazón del suite de 197 tests. Tres
+piezas clave:
+  1. `engine` (function-scope): crea SQLite in-memory POR TEST y siembra
+     las 18 especialidades. Drop al final del test = aislamiento total.
+  2. StaticPool: necesario para que las conexiones SQLite vean la MISMA
+     BD in-memory. Sin StaticPool, cada conexión ve una BD vacía y los
+     tests se rompen aleatoriamente.
+  3. `client` con `dependency_overrides[get_session]`: el TestClient
+     comparte la sesión del test en vez de abrir una nueva por request,
+     así los datos creados en setup son visibles para el endpoint.
+
+IMPORTANTE: si añades una tabla nueva al modelo, los tests deben seguir
+pasando sin tocar conftest — `SQLModel.metadata.create_all` toma TODO
+lo declarado en `app/models`. Solo hay que extender este archivo si
+necesitas un seed adicional (como el de especialidades).
+
+OJO: la lista ESPECIALIDADES_HTQPJB_SEED DEBE coincidir con la de
+init.sql y la de la migración 0007. Si se agrega/quita una en backend,
+también acá. NO importamos de un módulo común a propósito — el
+conftest debe ser autocontenido y resistente a refactors del backend.
 """
 from datetime import time
 
@@ -54,6 +75,13 @@ def test_password() -> str:
 
 @pytest.fixture(name="engine")
 def engine_fixture():
+    # "sqlite://" sin path = BD in-memory. Vive solo mientras existe
+    # el engine, y desaparece al final del fixture.
+    # check_same_thread=False: SQLite por defecto solo permite una
+    # conexión por thread; el TestClient de FastAPI puede usar threads
+    # distintos para servir requests. Sin este flag, tests con threads
+    # truenan con "SQLite objects created in a thread...".
+    # StaticPool: ver el docstring del módulo.
     engine = create_engine(
         "sqlite://",
         connect_args={"check_same_thread": False},
@@ -135,6 +163,16 @@ def auth_as_fixture(client: TestClient, session: Session, seed_users):
 
     Hacemos override de get_current_user en lugar de hacer login real,
     porque login emite tokens con expiración real y queremos tests rápidos.
+
+    Uso típico en un test:
+        def test_x(auth_as, client):
+            actor = auth_as("admin")  # ahora client va como admin
+            ...
+
+    OJO: el override es GLOBAL al `app.dependency_overrides`. Si un
+    test llama auth_as("admin") y luego auth_as("medico"), el segundo
+    pisa al primero — es el comportamiento deseado para cambiar de
+    rol mid-test. El `client` fixture limpia los overrides al final.
     """
     def _login(rol: str) -> Usuario:
         mapping = {

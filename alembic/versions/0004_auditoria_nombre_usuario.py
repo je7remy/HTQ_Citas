@@ -3,6 +3,24 @@
 Revision ID: 0004
 Revises: 0003
 Create Date: 2026-05-10
+
+CONTEXTO: descubrimos que cuando un usuario se desactivaba (soft delete)
+y luego un admin consultaba la auditoría, el JOIN con `usuarios` perdía
+ya el nombre en algunos casos (sobre todo si el usuario había sido
+renombrado). La Ley 172-13 exige que la auditoría sea "inmutable" en
+sentido pragmático — debe poder leerse aún sin la tabla de usuarios.
+
+Solución: denormalizar el nombre del usuario en la fila de auditoría.
+Rompe la 3FN deliberadamente para garantizar trazabilidad legal.
+
+Patrón:
+  1. Columna nullable temporalmente.
+  2. UPDATE con JOIN para rellenar histórico desde usuarios.
+  3. Placeholder '[usuario eliminado]' para huérfanos.
+  4. ALTER a NOT NULL.
+
+OJO: tras esta migración, TODO insert de auditoría debe rellenar
+nombre_usuario (ver app/services/audit.py).
 """
 
 from typing import Sequence, Union

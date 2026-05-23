@@ -3,6 +3,17 @@
 Revision ID: 0003
 Revises: 0002
 Create Date: 2026-05-10
+
+CONTEXTO: pedido del HTQPJB — varios médicos tienen subespecialidades
+que el sistema necesita reportar (Dr. García: Cirugía General +
+Vascular + Torácica). Se agregaron DOS columnas nullable en vez de
+una tabla N:M porque:
+  - Los reportes lo necesitan en columnas planas (fáciles de exportar).
+  - Ningún médico real tiene más de 3 especialidades en total.
+  - Mantener simple el modelo.
+
+Si en algún momento se necesitan más de 2 secundarias, hacer una tabla
+medico_especialidad y migrar — pero hoy no hace falta.
 """
 
 from typing import Sequence, Union

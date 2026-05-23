@@ -22,6 +22,13 @@ class RespaldoExterno(BackupStrategy):
         self._impl = RespaldoLocal(self.destino_dir)
 
     def ejecutar(self, archivo_sql: Path) -> BackupResultado:
+        # Chequeo de "padre existe" antes de intentar la copia.
+        # CONTEXTO: si el USB no está enchufado o el montaje NFS cayó,
+        # mkdir(parents=True) crearía la ruta dentro del filesystem del
+        # contenedor en vez de fallar — el respaldo "quedaría" como
+        # exitoso pero contra un directorio fantasma. Validar el padre
+        # primero hace que el error sea explícito y el admin entienda
+        # que tiene que enchufar el disco.
         padre = self.destino_dir.parent
         if not padre.exists():
             raise FileNotFoundError(

@@ -1,10 +1,40 @@
+/*
+ * SGCM frontend client - login, JWT storage, fetch wrapper.
+ *
+ * CONTEXTO: módulo único cargado por TODAS las pantallas del SGCM.
+ * Expone el namespace global `SGCM` (IIFE) con helpers para auth,
+ * llamadas a la API, formateo de cédulas/teléfonos/horas y el shell
+ * de navegación (sidebar + header).
+ *
+ * Por qué IIFE en vez de ES modules: el SGCM se sirve offline desde
+ * Nginx (sin bundler, sin build step) y los templates HTML usan
+ * <script src="/static/js/app.js"></script>. Un módulo con `export`
+ * requeriría `type="module"`, fetch con CORS estricto, y más fricción.
+ *
+ * IMPORTANTE: el JWT se guarda en localStorage para sobrevivir refresh.
+ * Esto significa que un XSS podría robarlo — el frontend NO acepta
+ * input HTML del usuario sin escapar, pero conviene revisar al añadir
+ * cualquier render dinámico nuevo (innerHTML, etc.).
+ *
+ * Acoplamientos:
+ *   - applyNavPermissions usa atributos data-role en los templates HTML.
+ *   - mountShell exige un <main id="page-main"> en el template.
+ */
 /* SGCM frontend client - login, JWT storage, fetch wrapper. */
 const SGCM = (() => {
   const API = "/api/v1";
   const TOKEN_KEY = "sgcm_token";
 
-  /* ---- Masks ---- */
+  /* ---- Masks ----
+     Estos formatters dan UX a los inputs (cédula, teléfono). El backend
+     normaliza después: la cédula se guarda SIN guiones (11 dígitos),
+     y el teléfono se almacena como venga (el formato es presentacional).
+     `\D` matchea cualquier cosa que NO sea dígito — limpia caracteres
+     pegados desde Word/Excel.
+  */
   function formatCedula(v) {
+    // Formato JCE: 000-0000000-0 (3-7-1). slice(0, 11) corta excesos
+    // si alguien pega 12+ dígitos.
     const d = (v || "").replace(/\D/g, "").slice(0, 11);
     if (d.length <= 3) return d;
     if (d.length <= 10) return d.slice(0, 3) + "-" + d.slice(3);
@@ -12,6 +42,9 @@ const SGCM = (() => {
   }
 
   function formatTelefono(v) {
+    // Formato R.D.: (809) 555-0123 — 3-3-4. La operadora real (809, 829,
+    // 849) no se valida aquí; se deja libre por si el paciente tiene
+    // un celular extranjero (raro, pero pasa con familiares).
     const d = (v || "").replace(/\D/g, "").slice(0, 10);
     if (!d.length) return "";
     if (d.length <= 3) return "(" + d;
@@ -24,6 +57,11 @@ const SGCM = (() => {
   }
 
   function applyMaskCedula(el) {
+    // Wire up de la máscara a un <input>: cada keystroke reformatea
+    // el value y recoloca el cursor manteniendo la posición lógica.
+    // Sin el ajuste de selectionStart, el cursor saltaría al final
+    // del input en cada tecla y la edición a mitad de cédula sería
+    // un infierno.
     if (!el) return;
     el.placeholder = "000-0000000-0";
     el.setAttribute("maxlength", "13");
@@ -32,6 +70,8 @@ const SGCM = (() => {
       const oldLen = this.value.length;
       this.value = formatCedula(this.value);
       const newLen = this.value.length;
+      // El delta (newLen - oldLen) compensa los guiones que aparecen
+      // automáticamente al cruzar los umbrales de 3 y 10 dígitos.
       this.setSelectionRange(pos + (newLen - oldLen), pos + (newLen - oldLen));
     });
   }
@@ -62,12 +102,21 @@ const SGCM = (() => {
   }
 
   function requireAuth() {
+    // Guard rápido para páginas protegidas: si no hay token, redirige
+    // a login. NO valida el token contra el backend — eso lo hace
+    // automáticamente la primera llamada api() (status 401 → logout).
+    // Aquí solo evitamos pintar UI vacía cuando el usuario ni siquiera
+    // hizo login.
     if (!getToken()) {
       window.location.href = "/login.html";
     }
   }
 
   async function login(email, password) {
+    // OAuth2PasswordRequestForm del backend exige `username` y `password`
+    // como x-www-form-urlencoded — NO acepta JSON. Por eso el campo de
+    // email se serializa como `username` aunque acá lo manejemos como
+    // "email" en la UI. Es la convención OAuth2.
     const body = new URLSearchParams();
     body.set("username", email);
     body.set("password", password);
@@ -78,6 +127,9 @@ const SGCM = (() => {
       body,
     });
     if (!res.ok) {
+      // .catch(() => ({})): si la respuesta no es JSON parseable (raro,
+      // típicamente 502 de Nginx con HTML), no truena el catch — devuelve
+      // mensaje genérico.
       const err = await res.json().catch(() => ({}));
       throw new Error(err.detail || "Error al iniciar sesión");
     }
@@ -87,6 +139,18 @@ const SGCM = (() => {
   }
 
   async function api(path, options = {}) {
+    // Wrapper único para TODAS las llamadas a /api/v1. Centraliza:
+    //   - Inyección del bearer token.
+    //   - Content-Type JSON automático si se manda body.
+    //   - Manejo de 401: logout + redirect a login (sesión expirada).
+    //   - Manejo de 204: devuelve null (DELETE sin contenido).
+    //   - Otros errores: lanza Error con `err.detail` del backend para
+    //     que el toast del frontend muestre el mensaje exacto del SGCM
+    //     (ej. "E-005: Horario ocupado").
+    //
+    // CUIDADO: si se elimina el bloque de 401, el frontend se queda
+    // mostrando errores genéricos en vez de redirigir al login cuando
+    // el token expira a la hora.
     const headers = options.headers || {};
     const token = getToken();
     if (token) headers["Authorization"] = `Bearer ${token}`;
@@ -112,6 +176,19 @@ const SGCM = (() => {
   }
 
   function applyNavPermissions(rol) {
+    // RBAC del lado del cliente: oculta elementos con data-role que no
+    // matchean el rol del usuario logueado.
+    //
+    // OJO: ESTO ES SOLO UX. La autorización real vive en el backend
+    // (require_roles). Si alguien teclea la URL directa, el endpoint
+    // responde 403 — el frontend solo evita mostrar opciones que el
+    // usuario no puede ejecutar.
+    //
+    // Convención de data-role:
+    //   "admin"      → solo administrador
+    //   "staff"      → admin O secretaria
+    //   "medico"     → solo médico
+    //   "secretaria" → solo secretaria (sin admin)
     const isAdmin = rol === "admin";
     const isStaff = rol === "admin" || rol === "secretaria";
     document.querySelectorAll("[data-role]").forEach((el) => {
@@ -126,6 +203,13 @@ const SGCM = (() => {
   }
 
   function formatMedicoNombre(nombre) {
+    // El nombre del médico se almacena SIN prefijo (ver
+    // _strip_doctor_prefix en backend/medicos.py). El frontend lo
+    // añade siempre como "Dr." al pintar.
+    //
+    // DEUDA: hoy se hardcodea "Dr." aunque la médica sea "Dra.".
+    // No tenemos campo sexo en Medico para inferirlo. Si en algún
+    // momento se agrega, este helper debe consultarlo.
     if (!nombre) return '';
     return 'Dr. ' + nombre;
   }
@@ -261,7 +345,16 @@ const SGCM = (() => {
 
   /* mountShell({ active, pageTitle }) — envuelve <main id="page-main">
      con el shell, hidrata datos del usuario, aplica RBAC y wire-up logout.
-     Retorna el objeto `me` del usuario (Promise). */
+     Retorna el objeto `me` del usuario (Promise).
+
+     CONTRATO con el template HTML:
+       - Debe existir <main id="page-main"> antes de llamar a esta función.
+       - El <main> existente se MUEVE dentro del shell (no se duplica).
+       - Lucide debe estar cargado para crear los íconos del sidebar.
+
+     CUIDADO: si el template no incluye Lucide, los íconos no aparecen
+     pero NO truena nada (el if window.lucide protege). Visualmente
+     queda raro hasta que se agrega <script src="...lucide..."></script>. */
   async function mountShell({ active, pageTitle }) {
     requireAuth();
     const main = document.getElementById('page-main');

@@ -250,6 +250,26 @@
 
   <script src="/static/js/app.js"></script>
   <script>
+    /*
+     * Pantalla "Médicos". Listado + horarios + modal de creación dual:
+     *
+     *   - Tab "Vincular usuario existente": elige un Usuario rol=medico
+     *     que NO esté ya vinculado (filtro sin_perfil_medico=true) y
+     *     crea solo el Medico apuntando a ese Usuario.
+     *
+     *   - Tab "Crear usuario nuevo": llama al endpoint /medicos/con-usuario
+     *     que crea Usuario + Medico en una transacción atómica.
+     *
+     * Si no hay usuarios sin perfil disponibles, el tab "vincular"
+     * deshabilita el botón y muestra un aviso sugiriendo crear usuario.
+     *
+     * Solo admin entra a esta pantalla con permisos completos. La
+     * secretaria/médico pueden VER la lista (vía sidebar) pero los
+     * botones de edición tienen data-role="admin".
+     *
+     * DIAS = mapeo del entero dia_semana (1-7 ISO) a etiqueta corta
+     * española. Coincide con la convención de Horario en backend.
+     */
     const DIAS = { 1: "Lun", 2: "Mar", 3: "Mié", 4: "Jue", 5: "Vie", 6: "Sáb", 7: "Dom" };
     let medicoSeleccionado = null;
     let currentUserRol = null;
