@@ -16,10 +16,35 @@ from app.api.deps import get_current_user
 from app.core.security import hash_password
 from app.db.session import get_session
 from app.main import app
-from app.models import Horario, Medico, RolUsuario, Usuario
+from app.models import Especialidad, Horario, Medico, RolUsuario, Usuario
 
 # Contraseña centralizada para todos los tests. Nunca usar literales reales en los módulos de test.
 TEST_PASSWORD = "test-password-fixture-only"
+
+# Catálogo inicial sembrado tras crear el esquema en cada test.
+# Es el mismo bloque que aplican `scripts/init.sql` y la migración 0007 en
+# entornos reales — aquí lo replicamos porque SQLite usa create_all() puro,
+# sin ejecutar SQL fuera del esquema de SQLModel.
+ESPECIALIDADES_HTQPJB_SEED: tuple[str, ...] = (
+    "Ortopedia y Traumatología",
+    "Cirugía General",
+    "Cirugía Vascular",
+    "Cirugía Torácica",
+    "Cirugía Plástica",
+    "Cirugía Pediátrica",
+    "Cirugía Ginecológica",
+    "Neurocirugía",
+    "Cirugía Maxilofacial",
+    "Anestesiología",
+    "Medicina Interna",
+    "Urología",
+    "Oftalmología",
+    "Otorrinolaringología",
+    "Medicina Física y Rehabilitación",
+    "Radiología y Diagnóstico por Imágenes",
+    "Laboratorio Clínico",
+    "Emergenciología",
+)
 
 
 @pytest.fixture
@@ -35,6 +60,10 @@ def engine_fixture():
         poolclass=StaticPool,
     )
     SQLModel.metadata.create_all(engine)
+    with Session(engine) as s:
+        for nombre in ESPECIALIDADES_HTQPJB_SEED:
+            s.add(Especialidad(nombre=nombre, activa=True))
+        s.commit()
     yield engine
     SQLModel.metadata.drop_all(engine)
 

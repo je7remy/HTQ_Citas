@@ -63,6 +63,7 @@ El SGCM automatiza el proceso de gestión de citas que el HTQPJB realizaba previ
 - Reportes administrativos: resumen y PDF de usuarios por rol, detalle y PDF de médicos activos con estadísticas.
 - Agenda extendida para secretaria/admin con filtros por médico, rango de fechas, estado y especialidad; exportación a PDF y Excel; impresión optimizada (`@media print`).
 - Sistema de respaldos (CU-16) con tres modalidades: local, externo (USB/UNC) y andamiaje preparado para nube (Amazon S3, Google Cloud Storage, Azure Blob).
+- Gestión de catálogos administrables (CU-17): el catálogo de especialidades vive en BD, se administra desde el panel admin y se valida en backend.
 - Auditoría transaccional de todas las operaciones críticas (Ley 172-13).
 - Suite de pruebas automatizadas con pytest.
 - CI/CD con GitHub Actions ejecutando linter, tests y construcción de imagen Docker.
@@ -270,6 +271,7 @@ sgcm/
 │   │   ├── consultas.py          Registro de consultas (rol médico)
 │   │   ├── reportes.py           Citas (PDF) y agenda extendida (PDF/Excel)
 │   │   ├── reportes_admin.py     Reportes administrativos (usuarios y médicos)
+│   │   ├── especialidades.py     CU-17 — CRUD del catálogo de especialidades
 │   │   ├── respaldos.py          CU-16 — gestión de respaldos
 │   │   └── auditoria.py
 │   ├── core/                     Configuración y seguridad (JWT, bcrypt)
@@ -287,7 +289,7 @@ sgcm/
 │   ├── templates/reportes/       Templates HTML para PDFs
 │   └── main.py                   Punto de entrada FastAPI
 ├── docker-entrypoint.sh          Inicializa esquema y ejecuta seed si SGCM_SEED=true
-├── alembic/versions/             6 migraciones (0001-0006); la 0006 crea `respaldos`
+├── alembic/versions/             7 migraciones (0001-0007); la 0007 crea `especialidades`
 ├── frontend/
 │   ├── static/
 │   │   ├── css/sgcm.css          Sistema de diseño (incluye `@media print`)
@@ -302,6 +304,7 @@ sgcm/
 │       ├── agenda.html           Agenda del rol médico
 │       ├── agenda-secretaria.html  Agenda extendida con filtros, PDF/Excel/print
 │       ├── usuarios.html         Gestión de usuarios (admin)
+│       ├── especialidades.html   Gestión del catálogo de especialidades CU-17 (admin)
 │       ├── reportes-usuarios.html  Reportes administrativos (admin)
 │       ├── respaldos.html        Panel de respaldos CU-16 (admin)
 │       └── auditoria.html        Log de auditoría (admin)
@@ -320,7 +323,7 @@ sgcm/
 
 ## Casos de uso
 
-El sistema implementa los **16 casos de uso** definidos en el análisis:
+El sistema implementa los **17 casos de uso** definidos en el análisis:
 
 |ID|Caso de uso|Roles|
 |---|---|---|
@@ -340,6 +343,7 @@ El sistema implementa los **16 casos de uso** definidos en el análisis:
 |CU-14|Registrar médico|Admin|
 |CU-15|Consultar auditoría|Admin|
 |CU-16|Generar respaldo de la base de datos|Admin|
+|CU-17|Gestionar especialidades|Admin|
 
 ---
 
@@ -384,7 +388,7 @@ En la columna **Rol** se indica el rol mínimo aceptado:
 | Método | Ruta                                              | Rol   | Descripción                                                                  |
 |--------|---------------------------------------------------|-------|------------------------------------------------------------------------------|
 | GET    | `/medicos`                                        | Todos | Lista médicos activos                                                        |
-| GET    | `/medicos/especialidades`                         | Todos | Catálogo oficial HTQPJB (18 especialidades)                                  |
+| GET    | `/medicos/especialidades`                         | Todos | Nombres de las especialidades activas (lectura conveniente para selects)     |
 | GET    | `/medicos/buscar?q=&incluir_inactivos=`           | Todos | Autocomplete por nombre (limit 20)                                           |
 | GET    | `/medicos/{id}/proxima-disponibilidad`            | Todos | Sugerencia de slot libre (granularidad 30 min, horizonte 30 días)            |
 | POST   | `/medicos`                                        | Admin | Alta de perfil médico (puede vincular usuario existente)                     |
@@ -435,6 +439,15 @@ cabecera la línea `Generado por: <nombre del usuario autenticado>`, y cada
 generación queda registrada en la tabla de auditoría
 (`tabla_afectada='reportes'`, `accion=CREATE`, `detalle='Generación de reporte:
 <tipo>'`) para saber quién extrajo información del sistema.
+
+### Especialidades (Admin · CU-17)
+
+| Método | Ruta                              | Rol   | Descripción                                                                  |
+|--------|-----------------------------------|-------|------------------------------------------------------------------------------|
+| GET    | `/especialidades?activa=&q=`      | Todos | Lista con filtros (devuelve también inactivas para que admin las reactive)   |
+| POST   | `/especialidades`                 | Admin | Alta de especialidad (unicidad case-insensitive, 409 si choca)               |
+| PATCH  | `/especialidades/{id}`            | Admin | Renombra / desactiva / cambia descripción; el rename propaga a `medicos`     |
+| DELETE | `/especialidades/{id}`            | Admin | Baja sólo si no hay médicos asignados (principal o secundaria) → 409 si está en uso |
 
 ### Respaldos (Admin · CU-16)
 
@@ -488,7 +501,7 @@ archivo):
 El esquema actual está consolidado en `scripts/init.sql` (se aplica al
 crear el volumen `sgcm_pgdata` por primera vez). Para mantener historial
 versionado y permitir upgrades futuros sobre BDs existentes, el proyecto
-mantiene **6 migraciones Alembic reversibles** en `alembic/versions/`:
+mantiene **7 migraciones Alembic reversibles** en `alembic/versions/`:
 
 | Revisión | Archivo                                          | Cambio principal                                                                   |
 |----------|--------------------------------------------------|------------------------------------------------------------------------------------|
@@ -498,6 +511,7 @@ mantiene **6 migraciones Alembic reversibles** en `alembic/versions/`:
 | `0004`   | `0004_auditoria_nombre_usuario.py`               | Denormaliza `auditoria.nombre_usuario` NOT NULL                                    |
 | `0005`   | `0005_consultas_diagnostico_estructurado.py`     | 5 campos clínicos en `consultas` (motivo, examen físico, condiciones, tratamiento) |
 | `0006`   | `0006_respaldos.py`                              | Crea la tabla `respaldos` + 2 índices                                              |
+| `0007`   | `0007_especialidades.py`                         | Crea la tabla `especialidades` + siembra el catálogo HTQPJB (18 entradas)          |
 
 Aplicación:
 

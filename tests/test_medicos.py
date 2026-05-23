@@ -1,12 +1,11 @@
 """Tests Mejora 1: vinculación usuario↔médico desde filtro y validación backend."""
 from sqlmodel import select
 
-from app.core.especialidades import ESPECIALIDADES_HTQPJB
 from app.models import RolUsuario, Usuario
-from tests.conftest import TEST_PASSWORD
+from tests.conftest import ESPECIALIDADES_HTQPJB_SEED, TEST_PASSWORD
 
-_ESP_VALIDA = ESPECIALIDADES_HTQPJB[0]   # "Ortopedia y Traumatología"
-_ESP_VALIDA2 = ESPECIALIDADES_HTQPJB[1]  # "Cirugía General"
+_ESP_VALIDA = ESPECIALIDADES_HTQPJB_SEED[0]   # "Ortopedia y Traumatología"
+_ESP_VALIDA2 = ESPECIALIDADES_HTQPJB_SEED[1]  # "Cirugía General"
 
 
 def _crear_usuario_medico(client, email="dr.nuevo@test.do", nombre="Dr. Nuevo"):
@@ -163,14 +162,18 @@ def test_crear_medico_con_usuario_email_duplicado(client, auth_as, seed_users):
 # ── GET /medicos/especialidades ──────────────────────────────────────────────
 
 def test_get_especialidades_retorna_lista_completa(client, auth_as, seed_users):
-    """GET /medicos/especialidades retorna 18 especialidades con status 200."""
+    """GET /medicos/especialidades retorna las 18 sembradas, ordenadas alfabéticamente."""
     auth_as("admin")
     res = client.get("/api/v1/medicos/especialidades")
     assert res.status_code == 200
     body = res.json()
     assert "especialidades" in body
     assert len(body["especialidades"]) == 18
-    assert body["especialidades"] == ESPECIALIDADES_HTQPJB
+    # El endpoint ahora ordena alfabéticamente por nombre desde BD,
+    # mientras que el seed mantiene un orden propio (por familia clínica).
+    assert sorted(body["especialidades"]) == sorted(ESPECIALIDADES_HTQPJB_SEED)
+    # Y debe venir efectivamente ordenado por nombre.
+    assert body["especialidades"] == sorted(body["especialidades"])
 
 
 def test_get_especialidades_accesible_por_medico(client, auth_as, seed_users):
