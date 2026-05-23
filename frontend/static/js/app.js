@@ -192,6 +192,7 @@ const SGCM = (() => {
     { key: 'agenda',            label: 'Mi Agenda',      href: '/agenda.html',              icon: 'clipboard-list', role: 'medico' },
     { key: 'agenda-secretaria', label: 'Agenda del día', href: '/agenda-secretaria.html',   icon: 'calendar-check', role: 'staff' },
     { key: 'usuarios',          label: 'Usuarios',       href: '/usuarios.html',            icon: 'shield-check',  role: 'admin' },
+    { key: 'especialidades',    label: 'Especialidades', href: '/especialidades.html',      icon: 'list-checks',   role: 'admin' },
     { key: 'reportes',          label: 'Reportes',       href: '/reportes-usuarios.html',   icon: 'bar-chart-3',   role: 'admin' },
     { key: 'auditoria',         label: 'Auditoría',      href: '/auditoria.html',           icon: 'file-search',   role: 'admin' },
     { key: 'respaldos',         label: 'Respaldos',      href: '/respaldos.html',           icon: 'database-backup', role: 'admin' },

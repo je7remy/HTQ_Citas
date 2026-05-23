@@ -5,10 +5,9 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlmodel import Session, select
 
 from app.api.deps import require_roles
-from app.core.especialidades import ESPECIALIDADES_HTQPJB
 from app.core.security import hash_password
 from app.db.session import get_session
-from app.models import AccionAuditoria, Horario, Medico, RolUsuario, Usuario
+from app.models import AccionAuditoria, Especialidad, Horario, Medico, RolUsuario, Usuario
 from app.schemas import (
     HorarioCreate,
     HorarioRead,
@@ -38,22 +37,35 @@ def _strip_doctor_prefix(nombre: str) -> str:
     return _PREFIJO_DR.sub("", nombre).strip()
 
 
-def _validar_especialidad(especialidad: str) -> None:
-    if especialidad not in ESPECIALIDADES_HTQPJB:
+def _validar_especialidad(session: Session, especialidad: str) -> None:
+    """Valida que `especialidad` exista en la tabla y este activa.
+
+    La consulta es exacta (no case-insensitive) porque el catalogo se
+    mantiene canonico desde el panel admin y los selects del frontend
+    envian el valor tal cual viene del endpoint /medicos/especialidades.
+    """
+    existe = session.exec(
+        select(Especialidad).where(
+            Especialidad.nombre == especialidad,
+            Especialidad.activa == True,  # noqa: E712
+        )
+    ).first()
+    if not existe:
         raise HTTPException(422, _MSG_ESPECIALIDAD_INVALIDA)
 
 
 def _validar_especialidades(
+    session: Session,
     principal: str,
     secundaria_1: str | None,
     secundaria_2: str | None,
 ) -> None:
     """Valida principal + secundarias contra el catálogo y la unicidad."""
-    _validar_especialidad(principal)
+    _validar_especialidad(session, principal)
     if secundaria_1 is not None:
-        _validar_especialidad(secundaria_1)
+        _validar_especialidad(session, secundaria_1)
     if secundaria_2 is not None:
-        _validar_especialidad(secundaria_2)
+        _validar_especialidad(session, secundaria_2)
     valores = [v for v in (principal, secundaria_1, secundaria_2) if v is not None]
     if len(valores) != len(set(valores)):
         raise HTTPException(
@@ -64,8 +76,22 @@ def _validar_especialidades(
 
 # ---------- Especialidades ----------
 @router.get("/especialidades")
-def listar_especialidades(_: Usuario = Depends(_any)):
-    return {"especialidades": ESPECIALIDADES_HTQPJB}
+def listar_especialidades(
+    session: Session = Depends(get_session),
+    _: Usuario = Depends(_any),
+):
+    """Devuelve los nombres de las especialidades activas, ordenados alfabeticamente.
+
+    Mantiene la forma legada `{"especialidades": [str, ...]}` que ya consumen
+    los selects del frontend (medicos.html, agenda-secretaria.html). El CRUD
+    completo del catalogo vive en /especialidades.
+    """
+    nombres = session.exec(
+        select(Especialidad.nombre)
+        .where(Especialidad.activa == True)  # noqa: E712
+        .order_by(Especialidad.nombre)
+    ).all()
+    return {"especialidades": list(nombres)}
 
 
 # ---------- Médicos ----------
@@ -117,6 +143,7 @@ def crear(
     actor: Usuario = Depends(_admin),
 ):
     _validar_especialidades(
+        session,
         payload.especialidad,
         payload.especialidad_secundaria_1,
         payload.especialidad_secundaria_2,
@@ -163,6 +190,7 @@ def crear_con_usuario(
     actor: Usuario = Depends(_admin),
 ):
     _validar_especialidades(
+        session,
         payload.medico.especialidad,
         payload.medico.especialidad_secundaria_1,
         payload.medico.especialidad_secundaria_2,
@@ -222,7 +250,7 @@ def actualizar(
         principal = data.get("especialidad", m.especialidad)
         sec1 = data["especialidad_secundaria_1"] if "especialidad_secundaria_1" in data else m.especialidad_secundaria_1
         sec2 = data["especialidad_secundaria_2"] if "especialidad_secundaria_2" in data else m.especialidad_secundaria_2
-        _validar_especialidades(principal, sec1, sec2)
+        _validar_especialidades(session, principal, sec1, sec2)
     if "nombre" in data:
         data["nombre"] = _strip_doctor_prefix(data["nombre"])
     for k, v in data.items():

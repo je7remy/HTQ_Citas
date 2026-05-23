@@ -18,7 +18,6 @@ from typing import Iterable, Optional
 from sqlmodel import Session, select
 
 from app.core.datetime_utils import ahora_local
-from app.core.especialidades import ESPECIALIDADES_HTQPJB
 from app.core.security import hash_password
 from app.models import (
     AccionAuditoria,
