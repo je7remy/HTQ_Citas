@@ -22,6 +22,7 @@ Plataforma web para automatizar y optimizar el proceso de gestión de citas méd
 - [Stack tecnológico](#stack-tecnol%C3%B3gico)
 - [Evolución del stack tecnológico](#evoluci%C3%B3n-del-stack-tecnol%C3%B3gico)
 - [Inicio rápido](#inicio-r%C3%A1pido)
+- [Despliegue con TLS (HTTPS)](#despliegue-con-tls-https)
 - [Estructura del proyecto](#estructura-del-proyecto)
 - [Casos de uso](#casos-de-uso)
 - [Roles y permisos](#roles-y-permisos)
@@ -78,12 +79,12 @@ El SGCM automatiza el proceso de gestión de citas que el HTQPJB realizaba previ
 flowchart TB
     Browser[Navegador del usuario]
     subgraph Server["Servidor en intranet del hospital"]
-        Nginx[Nginx<br/>puerto 80<br/>proxy + estaticos]
+        Nginx[Nginx<br/>puertos 80 redirige a 443<br/>TLS + proxy + estaticos]
         API[FastAPI<br/>puerto 8000<br/>backend]
         DB[(PostgreSQL<br/>puerto 5432<br/>base de datos)]
     end
 
-    Browser -->|HTTP| Nginx
+    Browser -->|HTTPS 443| Nginx
     Nginx -->|/api/v1/*| API
     Nginx -->|archivos HTML/JS/CSS| Browser
     API <-->|SQL| DB
@@ -121,8 +122,8 @@ flowchart TB
 ### Infraestructura
 
 - **Docker + Docker Compose** — Orquestación de contenedores.
-- **Nginx** — Proxy inverso y servidor de archivos estáticos.
-- **mkcert** — Certificado SSL para HTTPS en intranet.
+- **Nginx** — Proxy inverso, servidor de archivos estáticos y terminación TLS (puerto 80 redirige a 443).
+- **openssl** — Generación de certificados TLS autofirmados para la intranet (`scripts/gen-cert.sh` y `scripts/gen-cert.ps1`).
 - **GitHub Actions** — Integración continua.
 
 ---
@@ -186,14 +187,21 @@ cd sgcm
 cp .env.example .env
 # Editar .env y configurar JWT_SECRET_KEY (mínimo 32 caracteres)
 
-# 3. Arrancar el sistema
+# 3. Generar el certificado TLS autofirmado (requerido por Nginx)
+# Linux / macOS:
+./scripts/gen-cert.sh                  # CN=sgcm.intranet
+# o con la IP/hostname real del servidor: ./scripts/gen-cert.sh 10.0.0.15
+# Windows PowerShell (requiere openssl en el PATH):
+# .\scripts\gen-cert.ps1
+
+# 4. Arrancar el sistema
 docker compose up -d --build
 
-# 4. Verificar
+# 5. Verificar
 docker compose ps
 ```
 
-Acceder a `http://localhost/` en el navegador.
+Acceder a `https://localhost/` en el navegador. El puerto 80 redirige automáticamente a 443. La primera vez el navegador mostrará una advertencia de certificado (esperado, ver [Despliegue con TLS](#despliegue-con-tls-https)).
 
 ### Credenciales de demostración
 
@@ -257,6 +265,74 @@ SGCM_SEED=true
 
 ---
 
+## Despliegue con TLS (HTTPS)
+
+El SGCM termina TLS en Nginx. El tráfico del navegador llega cifrado por
+HTTPS (puerto 443); el puerto 80 solo redirige a HTTPS. El hop interno
+Nginx→FastAPI viaja por la red privada del `docker compose` y no se expone
+al exterior.
+
+Como el sistema opera en la **intranet aislada del HTQPJB**, se usa un
+certificado **autofirmado**. No hay CA pública porque el servidor no es
+accesible desde internet.
+
+### 1. Generar el certificado (una sola vez, antes del primer `up`)
+
+**Linux / macOS / dentro de Docker:**
+
+```bash
+./scripts/gen-cert.sh                 # CN=sgcm.intranet (por defecto)
+./scripts/gen-cert.sh 10.0.0.15       # usar la IP real del servidor
+./scripts/gen-cert.sh sgcm.hospital   # o un hostname de la intranet
+```
+
+**Windows (PowerShell), requiere openssl de Git for Windows en el PATH:**
+
+```powershell
+.\scripts\gen-cert.ps1
+.\scripts\gen-cert.ps1 -HostName 10.0.0.15
+```
+
+Esto crea `nginx/certs/sgcm.crt` y `nginx/certs/sgcm.key`. Ambos están en
+`.gitignore`: **la llave privada nunca se versiona**.
+
+### 2. Levantar el sistema
+
+```bash
+docker compose up -d --build
+```
+
+Acceder desde `https://<host-o-ip-del-servidor>/`. El puerto 80 redirige
+automáticamente a 443.
+
+### 3. Advertencia del navegador (esperada)
+
+Al ser autofirmado, el navegador mostrará "conexión no privada" la primera
+vez. Es lo normal en intranet. Dos opciones:
+
+- **Aceptar la excepción** en cada equipo (rápido, válido para pruebas).
+- **Distribuir el `sgcm.crt`** como certificado de confianza vía GPO /
+  directiva de dominio (recomendado en producción; lo gestiona el
+  Departamento de Informática del HTQPJB). Así desaparece la advertencia.
+
+### 4. Regenerar el certificado
+
+El certificado dura **825 días** (máximo aceptado por navegadores modernos
+sin CA pública). Antes de que expire, volver a correr el script del paso 1
+y reiniciar Nginx:
+
+```bash
+docker compose restart nginx
+```
+
+### 5. Migrar a una CA interna (opcional, producción)
+
+Si el hospital tiene una CA interna, basta colocar el certificado firmado
+por esa CA como `nginx/certs/sgcm.crt` (con su cadena) y la llave como
+`nginx/certs/sgcm.key`, y reiniciar Nginx. No hay que tocar `default.conf`.
+
+---
+
 ## Estructura del proyecto
 
 ```text
@@ -308,8 +384,11 @@ sgcm/
 │       ├── reportes-usuarios.html  Reportes administrativos (admin)
 │       ├── respaldos.html        Panel de respaldos CU-16 (admin)
 │       └── auditoria.html        Log de auditoría (admin)
-├── nginx/                        Configuración Nginx
-├── scripts/init.sql              DDL inicial (volumen Postgres)
+├── nginx/                        Configuración Nginx (default.conf con TLS) + certs/ (gitignored)
+├── scripts/
+│   ├── init.sql                  DDL inicial (volumen Postgres)
+│   ├── gen-cert.sh               Generador de cert TLS autofirmado (Linux/macOS)
+│   └── gen-cert.ps1              Generador de cert TLS autofirmado (Windows)
 ├── docs/                         Guías operativas (BACKUPS.md, OFFLINE.md)
 ├── tests/                        Suite pytest
 ├── .github/workflows/ci.yml      CI con GitHub Actions
@@ -709,4 +788,4 @@ La Vega, República Dominicana — 2026
 
 ## Versión
 
-**SGCM v33.1** — Mayo 2026
+**SGCM v50.1** — Mayo 2026

@@ -105,9 +105,14 @@ services:
 
     ports:
       - "80:80"
+      - "443:443"
 
     volumes:
       - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      # Certificados TLS (autofirmados para la intranet). Generar con
+      # scripts/gen-cert.sh o scripts/gen-cert.ps1 antes del primer `up`.
+      # :ro para que el contenedor no pueda alterar la llave privada.
+      - ./nginx/certs:/etc/nginx/certs:ro
       # frontend/ se monta como solo lectura. Los HTML y JS son
       # archivos estáticos que se cargan al instante; cambios en
       # frontend/ se ven en vivo sin rebuild del contenedor (solo
