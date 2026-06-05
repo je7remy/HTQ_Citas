@@ -23,7 +23,15 @@ from app.core.config import settings
 # vieja usa un esquema anticuado al verificar. Hoy todos los hashes son
 # bcrypt nuevos, pero el flag deja la puerta abierta para una migración
 # futura sin romper logins.
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# `bcrypt__rounds=12` fija el factor de costo a 2^12 iteraciones,
+# alineado con la sección 2.5.3 de la tesis. Hoy 12 es el default
+# de passlib, pero declararlo explícito evita que una actualización
+# futura cambie silenciosamente la seguridad operativa.
+pwd_context = CryptContext(
+    schemes=["bcrypt"],
+    deprecated="auto",
+    bcrypt__rounds=12,
+)
 
 
 def hash_password(password: str) -> str:
