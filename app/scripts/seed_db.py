@@ -6,9 +6,13 @@ Uso:
     python -m app.scripts.seed_db --solo usuarios # ejecuta solo una sección
 
 Secciones válidas para --solo:
-    usuarios, medicos, horarios, pacientes, citas, consultas
+    especialidades, usuarios, medicos, horarios, pacientes, citas,
+    consultas, accesos, normalizar
 
-El comando es idempotente: ejecutarlo dos veces no duplica datos.
+El comando es idempotente: ejecutarlo dos veces no duplica datos. Los
+seeders trabajan por "top-up": comparan lo que hay contra su cifra
+objetivo y crean sólo la diferencia, así que re-ejecutarlo tras subir un
+objetivo amplía el volumen sin tocar los datos ya existentes.
 """
 from __future__ import annotations
 
@@ -21,7 +25,17 @@ from sqlmodel import Session
 from app.db import seed as seed_mod
 from app.db.session import engine, init_db
 
-_SECCIONES = ("usuarios", "medicos", "horarios", "pacientes", "citas", "consultas")
+_SECCIONES = (
+    "especialidades",
+    "usuarios",
+    "medicos",
+    "horarios",
+    "pacientes",
+    "citas",
+    "consultas",
+    "accesos",
+    "normalizar",
+)
 
 
 def _configurar_logging() -> None:
@@ -32,7 +46,9 @@ def _configurar_logging() -> None:
 
 
 def _ejecutar_seccion(session: Session, seccion: str) -> None:
-    if seccion == "usuarios":
+    if seccion == "especialidades":
+        seed_mod.seed_especialidades(session)
+    elif seccion == "usuarios":
         seed_mod.seed_usuarios(session)
     elif seccion == "medicos":
         seed_mod.seed_medicos(session)
@@ -44,6 +60,10 @@ def _ejecutar_seccion(session: Session, seccion: str) -> None:
         seed_mod.seed_citas(session)
     elif seccion == "consultas":
         seed_mod.seed_consultas(session)
+    elif seccion == "accesos":
+        seed_mod.seed_accesos(session)
+    elif seccion == "normalizar":
+        seed_mod.normalizar_historico(session)
     else:  # pragma: no cover — argparse ya valida choices
         raise ValueError(f"Sección desconocida: {seccion}")
 

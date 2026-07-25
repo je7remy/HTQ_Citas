@@ -210,15 +210,24 @@ El comando `python -m app.scripts.seed_db` (también ejecutable en automático c
 |Rol|Email|Contraseña|
 |---|---|---|
 |Administrador|`admin@htqpjb.gob.do`|`Admin123!`|
+|Administrador (soporte)|`soporte.ti@htqpjb.gob.do`|`Admin123!`|
 |Secretaria|`secretaria.maria@htqpjb.gob.do`|`Secretaria123!`|
 |Secretaria|`secretaria.juana@htqpjb.gob.do`|`Secretaria123!`|
 |Secretaria|`secretaria.elena@htqpjb.gob.do`|`Secretaria123!`|
 |Secretaria|`secretaria.rosa@htqpjb.gob.do`|`Secretaria123!`|
+|Secretaria|`secretaria.yaneris@htqpjb.gob.do`|`Secretaria123!`|
+|Secretaria inactiva (prueba)|`secretaria.baja@htqpjb.gob.do`|`Secretaria123!`|
 |Médico (Ortopedia)|`dr.jperez@htqpjb.gob.do`|`Medico123!`|
+|Médico (Ortopedia)|`dr.fmarte@htqpjb.gob.do`|`Medico123!`|
 |Médico (Medicina Interna)|`dra.aramirez@htqpjb.gob.do`|`Medico123!`|
+|Médico (Medicina Interna)|`dra.emedina@htqpjb.gob.do`|`Medico123!`|
 |Médico (Cirugía General)|`dr.cgarcia@htqpjb.gob.do`|`Medico123!`|
 |Médico (Oftalmología)|`dra.lcastillo@htqpjb.gob.do`|`Medico123!`|
 |Médico (Neurocirugía)|`dr.rsantos@htqpjb.gob.do`|`Medico123!`|
+|Médico (Cirugía Ginecológica)|`dra.mcabrera@htqpjb.gob.do`|`Medico123!`|
+|Médico (Cirugía Plástica)|`dra.kbatista@htqpjb.gob.do`|`Medico123!`|
+|Médico (Cirugía Vascular)|`dr.gvasquez@htqpjb.gob.do`|`Medico123!`|
+|Médico (Emergenciología)|`dr.aguzman@htqpjb.gob.do`|`Medico123!`|
 |Médico inactivo (prueba)|`dr.inactivo@htqpjb.gob.do`|`Medico123!`|
 
 > **Importante:** cambiar inmediatamente todas las contraseñas tras la primera puesta en marcha en producción.
@@ -227,15 +236,22 @@ El comando `python -m app.scripts.seed_db` (también ejecutable en automático c
 
 El módulo `app.db.seed` puebla la base de datos del HTQPJB con datos realistas para que el sistema sea usable desde el primer arranque. Cada función es **idempotente**: ejecutarla dos veces no duplica datos.
 
+Los seeders trabajan por **top-up**: comparan lo que hay en la BD contra su cifra objetivo y crean solo la diferencia, respetando lo que ya existe (venga del seed o del uso real). Subir un objetivo y volver a ejecutar amplía el volumen sin borrar ni duplicar nada.
+
 |Entidad|Cantidad|Detalles|
 |---|---|---|
-|Usuarios|11|1 admin + 4 secretarias + 5 médicos activos + 1 médico inactivo|
-|Médicos|9 (8 activos + 1 inactivo)|Cubren 11 de las 18 especialidades oficiales|
-|Horarios|L-V mañana/tarde y sábados mañana|7:00–12:00 y 14:00–17:00 entre semana; 8:00–12:00 los sábados|
-|Pacientes|40|Cédulas dominicanas con dígito verificador real, edades 5–85, los 4 valores de sexo|
-|Citas|50|30% pendientes futuras, 30% atendidas pasadas, 10% canceladas, 30% próximos 3 días|
-|Consultas|≥15|Una por cada cita atendida, con los 5 campos clínicos plausibles según especialidad|
-|Auditoría|Coherente|Cada inserción del seed deja un registro en `auditoria`|
+|Especialidades|18|Catálogo oficial CU-17 con descripción institucional|
+|Usuarios|20|2 admins + 6 secretarias (1 inactiva) + 12 médicos con cuenta (1 inactivo)|
+|Médicos|20 (18 activos + 2 inactivos)|Cubren las 18 especialidades oficiales; 8 sin cuenta de sistema|
+|Horarios|8 patrones distintos|Jornada completa, matutino, vespertino, alterno, quirúrgico, guardia y apoyo|
+|Pacientes|220|Cédulas dominicanas con dígito verificador real, tramos etarios ponderados, sexo masculino/femenino|
+|Citas|~2200|~5 meses de historia + ~6 semanas a futuro, sin domingos, carga desigual por médico y por día|
+|Consultas|~1380|Una por cada cita atendida, con los 5 campos clínicos plausibles según especialidad|
+|Auditoría|~4900|CREATE/UPDATE/DELETE/LOGIN fechados en el momento en que la operación habría ocurrido|
+
+**Realismo temporal:** los timestamps no se estampan con la hora de ejecución. La cita se "agendó" días antes de la atención, la consulta se registró minutos después de la cita y cada registro de auditoría acompaña a su operación — de modo que la bitácora refleja meses de actividad y no una carga masiva de un solo día.
+
+**Normalización del histórico:** `normalizar_historico` cierra citas pendientes vencidas (más de 3 días), corrige el sexo de pacientes generados por versiones anteriores del seed, retrocede la fecha de registro de pacientes con citas anteriores a su alta y recorta registros de auditoría fechados en el futuro. Es idempotente y no elimina información.
 
 #### Ejecución manual
 
@@ -250,7 +266,9 @@ docker exec sgcm_api python -m app.scripts.seed_db --reset
 docker exec sgcm_api python -m app.scripts.seed_db --solo pacientes
 ```
 
-Secciones válidas para `--solo`: `usuarios`, `medicos`, `horarios`, `pacientes`, `citas`, `consultas`.
+Secciones válidas para `--solo`: `especialidades`, `usuarios`, `medicos`, `horarios`, `pacientes`, `citas`, `consultas`, `accesos`, `normalizar`.
+
+> **Antes de una demostración en vivo:** volver a ejecutar el seed completo. El refuerzo de agenda garantiza un mínimo de citas por médico en los días siguientes a la ejecución, de modo que ninguna agenda del rol médico aparezca vacía en la fecha de la demo.
 
 #### Ejecución automática en cada arranque
 

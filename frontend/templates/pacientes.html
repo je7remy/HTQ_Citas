@@ -184,7 +184,12 @@
     cancelBtn.addEventListener("click", () => { resetForm(); formSection.classList.add("is-hidden"); });
 
     async function cargar(q = "") {
-      const path = q ? `/pacientes?q=${encodeURIComponent(q)}` : "/pacientes";
+      // limit=200 es el tope que admite GET /pacientes (Query(le=200)).
+      // Sin él la lista se quedaba en los 50 por defecto y la etiqueta
+      // "N pacientes" mostraba el tamaño de página, no el padrón.
+      const path = q
+        ? `/pacientes?limit=200&q=${encodeURIComponent(q)}`
+        : "/pacientes?limit=200";
       const data = await SGCM.api(path);
       const tbody = document.getElementById("tbody");
       const totalInfo = document.getElementById("total-info");
