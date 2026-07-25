@@ -119,16 +119,20 @@ def actualizar(
     return p
 
 
-@router.get("/{paciente_id}/historial-medico")
-def historial_medico(
+def _construir_historial_medico(
+    session: Session,
+    *,
     paciente_id: int,
-    medico_id: int | None = Query(default=None),
-    session: Session = Depends(get_session),
-    _: Usuario = Depends(_any_user),
-):
-    """Historial de consultas atendidas del paciente, opcionalmente filtrado por médico.
+    medico_id: int | None = None,
+    ascendente: bool = False,
+) -> list[dict]:
+    """Consultas atendidas de un paciente, opcionalmente filtradas por médico.
 
-    Ordenado por fecha+hora descendente (más reciente primero).
+    FUENTE ÚNICA de la consulta de historial: la consumen el endpoint JSON
+    de esta misma pantalla y el PDF de reportes (reportes.py). Si cambia el
+    criterio clínico —qué estados entran, qué campos salen— se cambia acá y
+    ambas salidas quedan coherentes. Mismo acuerdo que
+    _construir_agenda_extendida entre citas.py y reportes.py.
 
     Solo entran consultas de citas en estado 'atendida' — pendiente o
     cancelada no tendrían información clínica útil.
@@ -138,10 +142,10 @@ def historial_medico(
     una sola tabla sin que el frontend tenga que cruzar datos. Incluye
     el campo legacy `observaciones` por si la consulta es vieja y trae
     info ahí en vez de los campos estructurados (Mejora 3.2).
-    """
-    if not session.get(Paciente, paciente_id):
-        raise HTTPException(404, "Paciente no encontrado.")
 
+    `ascendente` invierte el orden: la pantalla quiere lo más reciente
+    primero, pero el historial impreso se lee mejor en orden cronológico.
+    """
     stmt = (
         select(Consulta, Cita, Medico)
         .where(
@@ -153,7 +157,10 @@ def historial_medico(
     )
     if medico_id is not None:
         stmt = stmt.where(Cita.id_medico == medico_id)
-    stmt = stmt.order_by(Cita.fecha.desc(), Cita.hora.desc())
+    if ascendente:
+        stmt = stmt.order_by(Cita.fecha, Cita.hora)
+    else:
+        stmt = stmt.order_by(Cita.fecha.desc(), Cita.hora.desc())
 
     return [
         {
@@ -173,6 +180,27 @@ def historial_medico(
         }
         for c, cita, m in session.exec(stmt).all()
     ]
+
+
+@router.get("/{paciente_id}/historial-medico")
+def historial_medico(
+    paciente_id: int,
+    medico_id: int | None = Query(default=None),
+    session: Session = Depends(get_session),
+    _: Usuario = Depends(_any_user),
+):
+    """Historial de consultas atendidas del paciente, opcionalmente filtrado por médico.
+
+    Ordenado por fecha+hora descendente (más reciente primero). La query
+    vive en _construir_historial_medico — este endpoint solo valida que el
+    paciente exista y la expone como JSON.
+    """
+    if not session.get(Paciente, paciente_id):
+        raise HTTPException(404, "Paciente no encontrado.")
+
+    return _construir_historial_medico(
+        session, paciente_id=paciente_id, medico_id=medico_id
+    )
 
 
 @router.delete("/{paciente_id}", status_code=204)

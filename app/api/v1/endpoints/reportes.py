@@ -5,9 +5,12 @@ CONTEXTO: la tesis exige reportes imprimibles del HTQPJB. Aquí viven:
   - /reportes/agenda/pdf — agenda extendida (igual filtros que la
     pantalla de secretaria) en PDF apaisado.
   - /reportes/agenda/excel — mismo contenido en .xlsx descargable.
+  - /reportes/historial-medico/pdf — historial clínico de un paciente
+    con un médico específico.
 
-Reutilizan _construir_agenda_extendida de citas.py para mantener
-coherencia: lo que ve la secretaria en pantalla = lo que sale en PDF.
+Reutilizan _construir_agenda_extendida de citas.py y
+_construir_historial_medico de pacientes.py para mantener coherencia:
+lo que ve la secretaria en pantalla = lo que sale en PDF.
 
 DECISIÓN DE DISEÑO: plantillas Jinja2 embebidas como strings en el
 mismo archivo. NO se separan a /templates/ porque WeasyPrint las usa
@@ -22,7 +25,7 @@ correspondiente o WeasyPrint generará un PDF sin esos datos.
 from datetime import date as date_type
 from io import BytesIO
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from jinja2 import Template
 from sqlmodel import Session, select
@@ -30,6 +33,7 @@ from weasyprint import HTML
 
 from app.api.deps import require_roles
 from app.api.v1.endpoints.citas import _construir_agenda_extendida, _parse_fecha_param
+from app.api.v1.endpoints.pacientes import _construir_historial_medico
 from app.core.datetime_utils import formatear_fecha_emision, formatear_hora_12
 from app.db.session import get_session
 from app.models import Cita, Medico, Paciente, RolUsuario, Usuario
@@ -536,4 +540,190 @@ def reporte_agenda_excel(
         BytesIO(xlsx_bytes),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f'attachment; filename="{nombre}"'},
+    )
+
+
+# ═════════════════════════════════════════════════════════════════
+# Historial médico paciente + médico (PDF)
+# ═════════════════════════════════════════════════════════════════
+
+_HISTORIAL_TEMPLATE = """
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<title>Historial Médico — SGCM</title>
+<style>
+  @page { size: A4; margin: 1.8cm; }
+  body { font-family: 'Helvetica', sans-serif; color: #1f2937; font-size: 11pt; }
+  h1 { color: #1e40af; margin: 0 0 4px 0; font-size: 18pt; }
+  .institucion { color: #4b5563; font-size: 9.5pt; margin: 0; }
+  .emision { color: #9ca3af; font-size: 9pt; margin: 2px 0 0 0; }
+  .ficha { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px;
+           padding: 12px 16px; margin-top: 16px; }
+  .ficha h2 { color: #1e40af; font-size: 12pt; margin: 0 0 8px 0; }
+  .ficha table { width: 100%; border-collapse: collapse; }
+  .ficha td { padding: 3px 0; font-size: 10pt; vertical-align: top; }
+  .ficha td.k { color: #6b7280; width: 34%; }
+  .conteo { margin-top: 18px; font-size: 10pt; color: #4b5563; }
+  .conteo strong { color: #1e40af; }
+  .consulta { margin-top: 12px; border: 1px solid #e5e7eb; border-radius: 6px;
+              overflow: hidden; page-break-inside: avoid; }
+  .consulta__head { background: #1e40af; color: #fff; padding: 7px 12px;
+                    font-size: 10pt; font-weight: bold; }
+  .consulta__body { padding: 10px 12px; }
+  .campo { margin-bottom: 9px; }
+  .campo:last-child { margin-bottom: 0; }
+  .campo .label { display: block; color: #1e40af; font-size: 8.5pt; font-weight: bold;
+                  text-transform: uppercase; letter-spacing: 0.04em; }
+  .campo .valor { font-size: 10pt; white-space: pre-wrap; }
+  .vacio { margin-top: 28px; padding: 18px; text-align: center; color: #6b7280;
+           background: #f9fafb; border: 1px dashed #d1d5db; border-radius: 6px;
+           font-size: 10.5pt; }
+  footer { position: fixed; bottom: 0; left: 0; right: 0; text-align: center;
+           color: #9ca3af; font-size: 8pt; }
+</style>
+</head>
+<body>
+  <h1>Historial Médico del Paciente</h1>
+  <p class="institucion">
+    Hospital Regional Traumatológico y Quirúrgico Prof. Juan Bosch — SGCM<br/>
+    La Vega, República Dominicana
+  </p>
+  <p class="emision">Reporte generado el {{ fecha_emision }}</p>
+  <p class="emision">Generado por: {{ generado_por }}</p>
+
+  <div class="ficha">
+    <h2>Datos del paciente</h2>
+    <table>
+      <tr><td class="k">Nombre</td><td>{{ paciente.nombre }} {{ paciente.apellidos }}</td></tr>
+      <tr><td class="k">Cédula</td><td>{{ paciente.cedula }}</td></tr>
+      <tr><td class="k">Sexo</td><td>{{ paciente.sexo|capitalize }}</td></tr>
+      <tr><td class="k">Fecha de nacimiento</td><td>{{ paciente.fecha_nacimiento }}</td></tr>
+      <tr><td class="k">Teléfono</td><td>{{ paciente.telefono }}</td></tr>
+    </table>
+  </div>
+
+  <div class="ficha">
+    <h2>Médico tratante</h2>
+    <table>
+      <tr><td class="k">Nombre</td><td>Dr. {{ medico.nombre }}</td></tr>
+      <tr><td class="k">Especialidad</td><td>{{ medico.especialidad }}</td></tr>
+    </table>
+  </div>
+
+  {% if consultas %}
+  <p class="conteo">
+    <strong>{{ consultas|length }}</strong> consulta(s) registrada(s) con este médico,
+    en orden cronológico (de la más antigua a la más reciente).
+  </p>
+
+  {% for c in consultas %}
+  <div class="consulta">
+    <div class="consulta__head">
+      Consulta {{ loop.index }} de {{ consultas|length }} ·
+      {{ c.fecha_consulta }} · {{ c.hora_consulta }}
+    </div>
+    <div class="consulta__body">
+      {% if c.motivo_consulta %}
+      <div class="campo">
+        <span class="label">Motivo de consulta</span>
+        <span class="valor">{{ c.motivo_consulta }}</span>
+      </div>
+      {% endif %}
+      {% if c.examen_fisico %}
+      <div class="campo">
+        <span class="label">Examen físico</span>
+        <span class="valor">{{ c.examen_fisico }}</span>
+      </div>
+      {% endif %}
+      <div class="campo">
+        <span class="label">Condición principal (diagnóstico)</span>
+        <span class="valor">{{ c.condicion_principal }}</span>
+      </div>
+      {% if c.condiciones_secundarias %}
+      <div class="campo">
+        <span class="label">Condiciones secundarias</span>
+        <span class="valor">{{ c.condiciones_secundarias }}</span>
+      </div>
+      {% endif %}
+      {% if c.tratamiento %}
+      <div class="campo">
+        <span class="label">Tratamiento</span>
+        <span class="valor">{{ c.tratamiento }}</span>
+      </div>
+      {% endif %}
+      {% if c.observaciones and not (c.motivo_consulta or c.examen_fisico
+                                     or c.condiciones_secundarias or c.tratamiento) %}
+      <div class="campo">
+        <span class="label">Observaciones (registro anterior)</span>
+        <span class="valor">{{ c.observaciones }}</span>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+  {% else %}
+  <p class="vacio">
+    Este paciente no tiene consultas registradas con el médico seleccionado.
+  </p>
+  {% endif %}
+
+  <footer>SGCM — Generado automáticamente · HTQPJB · La Vega, R.D.</footer>
+</body>
+</html>
+"""
+
+
+@router.get("/historial-medico/pdf")
+def reporte_historial_medico_pdf(
+    request: Request,
+    paciente_id: int = Query(...),
+    medico_id: int = Query(...),
+    session: Session = Depends(get_session),
+    actor: Usuario = Depends(_staff),
+):
+    """PDF del historial clínico de un paciente con un médico específico.
+
+    Comparte la query con GET /pacientes/{id}/historial-medico vía
+    _construir_historial_medico: mismo criterio de inclusión (citas
+    atendidas con consulta registrada) y mismos campos clínicos. La única
+    diferencia es el orden — acá ascendente, porque un historial impreso
+    se lee de la consulta más antigua a la más reciente.
+
+    Los datos del paciente y del médico se leen aparte del historial
+    porque la cabecera del documento debe salir igual aunque no haya
+    ninguna consulta que listar.
+    """
+    paciente = session.get(Paciente, paciente_id)
+    if not paciente:
+        raise HTTPException(404, "Paciente no encontrado.")
+    medico = session.get(Medico, medico_id)
+    if not medico:
+        raise HTTPException(404, "Médico no encontrado.")
+
+    consultas = _construir_historial_medico(
+        session, paciente_id=paciente_id, medico_id=medico_id, ascendente=True
+    )
+
+    html_str = Template(_HISTORIAL_TEMPLATE).render(
+        paciente=paciente,
+        medico=medico,
+        consultas=consultas,
+        fecha_emision=formatear_fecha_emision(),
+        generado_por=actor.nombre or actor.email,
+    )
+    pdf_bytes = HTML(string=html_str).write_pdf()
+
+    # Ley 172-13: el historial clínico es el dato más sensible del SGCM,
+    # así que su impresión queda auditada igual que los demás reportes.
+    registrar_auditoria_reporte(
+        session, actor=actor, request=request, tipo="historial_medico"
+    )
+
+    nombre = f"historial_{paciente.cedula}_medico_{medico.id}.pdf"
+    return StreamingResponse(
+        BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="{nombre}"'},
     )

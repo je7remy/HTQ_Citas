@@ -26,7 +26,18 @@ from sqlmodel import Session, select
 from app.api.deps import require_roles
 from app.core.security import hash_password
 from app.db.session import get_session
-from app.models import AccionAuditoria, Especialidad, Horario, Medico, RolUsuario, Usuario
+from app.models import (
+    AccionAuditoria,
+    Cita,
+    Consulta,
+    Especialidad,
+    EstadoCita,
+    Horario,
+    Medico,
+    Paciente,
+    RolUsuario,
+    Usuario,
+)
 from app.schemas import (
     HorarioCreate,
     HorarioRead,
@@ -35,6 +46,7 @@ from app.schemas import (
     MedicoCreate,
     MedicoRead,
     MedicoUpdate,
+    PacienteRead,
 )
 from app.services.audit import registrar_auditoria
 from app.services.disponibilidad_service import proxima_disponibilidad
@@ -176,6 +188,41 @@ def get_proxima_disponibilidad(
 ):
     """Sugerencia de próximo slot libre del médico (None si no hay en 30 días)."""
     return proxima_disponibilidad(session, medico_id)
+
+
+@router.get("/{medico_id}/pacientes", response_model=list[PacienteRead])
+def pacientes_atendidos(
+    medico_id: int,
+    session: Session = Depends(get_session),
+    _: Usuario = Depends(_any),
+):
+    """Pacientes que este médico ya atendió (al menos una consulta registrada).
+
+    Alimenta el combo de pacientes del reporte de historial médico. Usa el
+    MISMO criterio clínico que _construir_historial_medico (cita en estado
+    'atendida' + consulta registrada) para que el combo nunca ofrezca un
+    paciente cuyo historial con este médico saldría vacío.
+
+    DISTINCT porque el JOIN devuelve una fila por consulta: un paciente con
+    cinco consultas aparecería cinco veces. El orden por apellidos sigue la
+    convención del resto del módulo de pacientes (registros físicos del
+    HTQPJB están alfabetizados así).
+    """
+    if not session.get(Medico, medico_id):
+        raise HTTPException(404, "Médico no encontrado.")
+
+    stmt = (
+        select(Paciente)
+        .where(
+            Cita.id_paciente == Paciente.id,
+            Cita.id_medico == medico_id,
+            Cita.estado == EstadoCita.atendida,
+            Consulta.id_cita == Cita.id,
+        )
+        .distinct()
+        .order_by(Paciente.apellidos, Paciente.nombre)
+    )
+    return session.exec(stmt).all()
 
 
 @router.post("", response_model=MedicoRead, status_code=status.HTTP_201_CREATED)

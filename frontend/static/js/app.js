@@ -343,6 +343,79 @@ const SGCM = (() => {
       </header>`;
   }
 
+  /* ---- Modal de confirmación de cierre de sesión ----
+     Se inyecta desde acá (y no desde cada template) porque el header
+     también se genera en JS: así el botón "Salir" y su confirmación
+     viajan juntos y ninguna pantalla tiene que copiar el markup.
+     Reutiliza las clases de modal ya definidas en sgcm.css. */
+  const LOGOUT_MODAL_ID = 'modal-logout';
+
+  function _renderLogoutModal() {
+    return `
+      <div id="${LOGOUT_MODAL_ID}" class="modal-backdrop is-hidden">
+        <div class="modal modal--sm" role="dialog" aria-modal="true" aria-labelledby="ml-titulo">
+          <div class="modal__header">
+            <h2 class="modal__title" id="ml-titulo">Cerrar sesión</h2>
+            <button type="button" class="modal__close" id="ml-cerrar"><i data-lucide="x"></i></button>
+          </div>
+          <div class="modal__body stack">
+            <p style="margin:0;">¿Está seguro que desea cerrar la sesión?</p>
+          </div>
+          <div class="modal__footer">
+            <button type="button" id="ml-cancelar" class="btn btn-ghost">Cancelar</button>
+            <button type="button" id="ml-confirmar" class="btn btn-danger">
+              <i data-lucide="log-out"></i><span>Cerrar sesión</span>
+            </button>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  function _cerrarLogoutModal() {
+    const backdrop = document.getElementById(LOGOUT_MODAL_ID);
+    if (backdrop) backdrop.classList.add('is-hidden');
+  }
+
+  function _abrirLogoutModal() {
+    const backdrop = document.getElementById(LOGOUT_MODAL_ID);
+    if (!backdrop) return;
+    backdrop.classList.remove('is-hidden');
+    // Foco en "Cancelar": es la opción segura si el usuario viene
+    // pulsando Enter de corrido.
+    backdrop.querySelector('#ml-cancelar').focus();
+  }
+
+  /* Inyecta el modal en <body> una sola vez por página. Idempotente:
+     si mountShell se llamara dos veces no duplica markup ni listeners. */
+  function _mountLogoutModal() {
+    if (document.getElementById(LOGOUT_MODAL_ID)) return;
+
+    const holder = document.createElement('div');
+    holder.innerHTML = _renderLogoutModal();
+    const backdrop = holder.firstElementChild;
+    document.body.appendChild(backdrop);
+
+    backdrop.querySelector('#ml-cerrar').addEventListener('click', _cerrarLogoutModal);
+    backdrop.querySelector('#ml-cancelar').addEventListener('click', _cerrarLogoutModal);
+
+    // Clic fuera del cuadro. El check e.target === backdrop evita cerrar
+    // cuando el clic viene de un hijo (el modal en sí).
+    backdrop.addEventListener('click', (e) => {
+      if (e.target === backdrop) _cerrarLogoutModal();
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !backdrop.classList.contains('is-hidden')) {
+        _cerrarLogoutModal();
+      }
+    });
+
+    backdrop.querySelector('#ml-confirmar').addEventListener('click', () => {
+      logout();
+      window.location.href = '/login.html';
+    });
+  }
+
   /* mountShell({ active, pageTitle }) — envuelve <main id="page-main">
      con el shell, hidrata datos del usuario, aplica RBAC y wire-up logout.
      Retorna el objeto `me` del usuario (Promise).
@@ -372,14 +445,16 @@ const SGCM = (() => {
     main.parentNode.insertBefore(shell, main);
     shell.appendChild(main);
 
+    // Inyecta el modal de confirmación ANTES de createIcons() para que
+    // sus íconos (x, log-out) también se rendericen.
+    _mountLogoutModal();
+
     // Inicializa íconos lucide
     if (window.lucide) lucide.createIcons();
 
-    // Wire logout
-    document.getElementById('logout').addEventListener('click', () => {
-      logout();
-      window.location.href = '/login.html';
-    });
+    // Wire logout: el botón ya no cierra sesión directo, abre el modal.
+    // El cierre real ocurre en el botón "Cerrar sesión" del modal.
+    document.getElementById('logout').addEventListener('click', _abrirLogoutModal);
 
     // Carga usuario y aplica RBAC
     try {

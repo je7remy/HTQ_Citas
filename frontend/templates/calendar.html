@@ -182,7 +182,7 @@
   <div id="modal-reporte" class="modal-backdrop is-hidden">
     <div class="modal modal--sm">
       <div class="modal__header">
-        <h2 class="modal__title">Reporte PDF de citas</h2>
+        <h2 class="modal__title">Reportes PDF</h2>
         <button class="modal__close" id="rep-cerrar" aria-label="Cerrar"><i data-lucide="x"></i></button>
       </div>
       <div class="modal__body stack">
@@ -202,6 +202,28 @@
             <option value="">Todos los médicos</option>
           </select>
         </div>
+
+        <!-- Historial médico: reporte aparte, no depende del rango de fechas -->
+        <p class="text-muted" style="font-size:13px; margin:4px 0 0 0;">
+          Historial médico de un paciente con un médico específico:
+        </p>
+        <div class="field">
+          <label class="field__label">Médico tratante</label>
+          <select id="rep-hist-medico" class="select">
+            <option value="">Seleccione un médico…</option>
+          </select>
+        </div>
+        <div class="field">
+          <label class="field__label">Paciente atendido</label>
+          <select id="rep-hist-paciente" class="select" disabled>
+            <option value="">Seleccione un médico primero</option>
+          </select>
+        </div>
+        <button id="btn-descargar-historial" class="btn btn-secondary" style="width:100%;" disabled>
+          <i data-lucide="file-text"></i>
+          <span>Descargar historial médico</span>
+        </button>
+
         <div id="rep-error" class="alert alert--danger is-hidden">
           <i data-lucide="alert-circle"></i>
           <span></span>
@@ -254,10 +276,12 @@
     function poblarSelectores() {
       const selCita = document.getElementById("nc-medico");
       const selReporte = document.getElementById("rep-medico-sel");
+      const selHistorial = document.getElementById("rep-hist-medico");
       medicosList.forEach((m) => {
         const opt = `<option value="${m.id}">${SGCM.formatMedicoNombre(m.nombre)} — ${m.especialidad}</option>`;
         selCita.insertAdjacentHTML("beforeend", opt);
         selReporte.insertAdjacentHTML("beforeend", `<option value="${m.id}">${SGCM.formatMedicoNombre(m.nombre)}</option>`);
+        selHistorial.insertAdjacentHTML("beforeend", `<option value="${m.id}">${SGCM.formatMedicoNombre(m.nombre)}</option>`);
       });
     }
 
@@ -558,6 +582,8 @@
       document.getElementById("rep-desde").value = new Date(y, m, 1).toISOString().slice(0, 10);
       document.getElementById("rep-hasta").value = new Date(y, m + 1, 0).toISOString().slice(0, 10);
       document.getElementById("rep-error").classList.add("is-hidden");
+      document.getElementById("rep-hist-medico").value = "";
+      resetHistorialPacientes("Seleccione un médico primero");
       document.getElementById("modal-reporte").classList.remove("is-hidden");
     });
 
@@ -591,6 +617,79 @@
         const a = document.createElement("a");
         a.href = objUrl;
         a.download = `reporte_citas_${desde}_${hasta}.pdf`;
+        a.click();
+        URL.revokeObjectURL(objUrl);
+        document.getElementById("modal-reporte").classList.add("is-hidden");
+      } catch (err) { setAlert(errBox, err.message); }
+    });
+
+    // ═══ Reporte de historial médico (paciente + médico)
+    // Cascada en dos pasos: al elegir médico se cargan SUS pacientes
+    // atendidos desde /medicos/{id}/pacientes. Ese endpoint aplica el
+    // mismo criterio que el historial (cita atendida + consulta
+    // registrada), así que el combo nunca ofrece una combinación cuyo
+    // PDF saldría sin consultas.
+    const histMedicoSel = document.getElementById("rep-hist-medico");
+    const histPacienteSel = document.getElementById("rep-hist-paciente");
+    const btnHistorial = document.getElementById("btn-descargar-historial");
+
+    function resetHistorialPacientes(msg) {
+      histPacienteSel.innerHTML = `<option value="">${msg}</option>`;
+      histPacienteSel.disabled = true;
+      btnHistorial.disabled = true;
+    }
+
+    histMedicoSel.addEventListener("change", async () => {
+      const errBox = document.getElementById("rep-error");
+      errBox.classList.add("is-hidden");
+      const medicoId = histMedicoSel.value;
+      if (!medicoId) { resetHistorialPacientes("Seleccione un médico primero"); return; }
+
+      resetHistorialPacientes("Cargando pacientes…");
+      try {
+        const pacientes = await SGCM.api(`/medicos/${medicoId}/pacientes`);
+        if (pacientes.length === 0) {
+          resetHistorialPacientes("Este médico aún no tiene pacientes atendidos");
+          return;
+        }
+        histPacienteSel.innerHTML =
+          `<option value="">Seleccione un paciente…</option>` +
+          pacientes
+            .map((p) => `<option value="${p.id}" data-cedula="${p.cedula}">${p.apellidos}, ${p.nombre} — ${SGCM.formatCedula(p.cedula)}</option>`)
+            .join("");
+        histPacienteSel.disabled = false;
+      } catch (err) {
+        resetHistorialPacientes("No se pudieron cargar los pacientes");
+        setAlert(errBox, err.message);
+      }
+    });
+
+    histPacienteSel.addEventListener("change", () => {
+      btnHistorial.disabled = !histPacienteSel.value;
+    });
+
+    btnHistorial.addEventListener("click", async () => {
+      // Mismo patrón de descarga binaria que el reporte de citas:
+      // fetch crudo con el JWT + blob, porque SGCM.api() hace res.json().
+      const medicoId = histMedicoSel.value;
+      const pacienteId = histPacienteSel.value;
+      const errBox = document.getElementById("rep-error");
+      errBox.classList.add("is-hidden");
+
+      if (!medicoId || !pacienteId) { setAlert(errBox, "Seleccione médico y paciente."); return; }
+      try {
+        const url = `/api/v1/reportes/historial-medico/pdf?paciente_id=${pacienteId}&medico_id=${medicoId}`;
+        const res = await fetch(url, { headers: { Authorization: `Bearer ${SGCM.getToken()}` } });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.detail || `HTTP ${res.status}`);
+        }
+        const blob = await res.blob();
+        const objUrl = URL.createObjectURL(blob);
+        const cedula = histPacienteSel.selectedOptions[0].dataset.cedula || pacienteId;
+        const a = document.createElement("a");
+        a.href = objUrl;
+        a.download = `historial_${cedula}_medico_${medicoId}.pdf`;
         a.click();
         URL.revokeObjectURL(objUrl);
         document.getElementById("modal-reporte").classList.add("is-hidden");
